@@ -8,6 +8,7 @@ import { registerSuppliersHandlers } from './ipc/suppliers'
 import { registerBillingHandlers } from './ipc/billing'
 import { registerPrescriptionsHandlers } from './ipc/prescriptions'
 import { registerReportsHandlers } from './ipc/reports'
+import { registerExportHandlers } from './ipc/export'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerBackupHandlers } from './ipc/backup'
 
@@ -50,6 +51,7 @@ app.whenReady().then(() => {
   registerBillingHandlers()
   registerPrescriptionsHandlers()
   registerReportsHandlers()
+  registerExportHandlers()
   registerSettingsHandlers()
   registerBackupHandlers()
 

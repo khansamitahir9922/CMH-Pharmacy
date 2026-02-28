@@ -21,6 +21,12 @@ import { POSPage } from '@/pages/Billing/POSPage'
 import { BillHistoryPage } from '@/pages/Billing/BillHistoryPage'
 import { PrescriptionsPage } from '@/pages/Prescriptions/PrescriptionsPage'
 import { ReportsPage } from '@/pages/Reports/ReportsPage'
+import { ReportsLayout } from '@/pages/Reports/ReportsLayout'
+import { SalesReport } from '@/pages/Reports/SalesReport'
+import { StockReport } from '@/pages/Reports/StockReport'
+import { PurchaseReport } from '@/pages/Reports/PurchaseReport'
+import { IssueReport } from '@/pages/Reports/IssueReport'
+import { LowStockReport } from '@/pages/Reports/LowStockReport'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
 
 type BootStatus = 'loading' | 'first-run' | 'ready'
@@ -100,7 +106,15 @@ export function AppBoot(): React.ReactElement {
         <Route path="billing/pos" element={<POSPage />} />
         <Route path="billing/history" element={<BillHistoryPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
-        <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports" element={<ReportsLayout />}>
+          <Route index element={<ReportsPage />} />
+          <Route path="sales" element={<SalesReport />} />
+          <Route path="stock" element={<StockReport />} />
+          <Route path="expiry" element={<ExpiryReport />} />
+          <Route path="low-stock" element={<LowStockReport />} />
+          <Route path="purchase" element={<PurchaseReport />} />
+          <Route path="issue" element={<IssueReport />} />
+        </Route>
         <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

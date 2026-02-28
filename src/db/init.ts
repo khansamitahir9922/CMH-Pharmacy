@@ -17,6 +17,7 @@ export function initDatabase(dbPath: string): BetterSQLite3Database<typeof schem
 
   createTables(sqlite)
   migrateMedicinesBarcode(sqlite)
+  migratePrescriptionsColumns(sqlite)
   seedDefaults(sqlite)
 
   db = drizzle(sqlite, { schema })
@@ -164,15 +165,17 @@ function createTables(conn: Database.Database): void {
     );
 
     CREATE TABLE IF NOT EXISTS prescriptions (
-      id                INTEGER PRIMARY KEY AUTOINCREMENT,
-      patient_name      TEXT    NOT NULL,
-      patient_age       INTEGER,
-      doctor_name       TEXT,
-      prescription_date TEXT,
-      image_path        TEXT,
-      notes             TEXT,
-      bill_id           INTEGER REFERENCES bills(id),
-      created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_name         TEXT    NOT NULL,
+      patient_age          INTEGER,
+      doctor_name          TEXT,
+      prescription_date    TEXT,
+      medicines_prescribed TEXT,
+      image_path           TEXT,
+      notes                TEXT,
+      bill_id              INTEGER REFERENCES bills(id),
+      is_deleted           INTEGER NOT NULL DEFAULT 0,
+      created_at           TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -208,6 +211,14 @@ function migrateMedicinesBarcode(conn: Database.Database): void {
   const rows = conn.prepare("PRAGMA table_info(medicines)").all() as Array<{ name: string }>
   if (rows.some((r) => r.name === 'barcode')) return
   conn.exec('ALTER TABLE medicines ADD COLUMN barcode TEXT')
+}
+
+/** Add medicines_prescribed and is_deleted to prescriptions if missing. */
+function migratePrescriptionsColumns(conn: Database.Database): void {
+  const rows = conn.prepare("PRAGMA table_info(prescriptions)").all() as Array<{ name: string }>
+  const names = new Set(rows.map((r) => r.name))
+  if (!names.has('medicines_prescribed')) conn.exec('ALTER TABLE prescriptions ADD COLUMN medicines_prescribed TEXT')
+  if (!names.has('is_deleted')) conn.exec('ALTER TABLE prescriptions ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0')
 }
 
 function seedDefaults(conn: Database.Database): void {

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Typography, Tabs, Table, Button, Skeleton } from 'antd'
-import { PrinterOutlined, ExportOutlined } from '@ant-design/icons'
+import { PrinterOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import * as XLSX from 'xlsx'
 import { formatDate, getExpiryColor } from '@/utils/expiryStatus'
+import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 interface ExpiryReportRow {
   id: number
@@ -49,8 +49,8 @@ export function ExpiryReport(): React.ReactElement {
     fetchReport()
   }, [])
 
-  const handleExport = (): void => {
-    if (!data) return
+  const getExportRows = (): Record<string, unknown>[] => {
+    if (!data) return []
     const rows: Record<string, unknown>[] = []
     TAB_KEYS.forEach((key) => {
       const list = data[key]
@@ -66,10 +66,21 @@ export function ExpiryReport(): React.ReactElement {
         })
       })
     })
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Expiry Report')
-    XLSX.writeFile(wb, `expiry-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    return rows
+  }
+
+  const handleExportExcel = (): void => {
+    const rows = getExportRows()
+    if (rows.length === 0) return
+    const headers = ['Status', 'Medicine Name', 'Category', 'Batch No', 'Expiry Date', 'Days Left', 'Current Stock']
+    exportToExcel(rows, headers, `expiry-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+  const handleExportPdf = (): void => {
+    const rows = getExportRows()
+    if (rows.length === 0) return
+    const headers = ['Status', 'Medicine Name', 'Category', 'Batch No', 'Expiry Date', 'Days Left', 'Current Stock']
+    exportToPDF(rows, headers, 'Expiry Report', `expiry-report-${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
   const handlePrint = (): void => {
@@ -119,8 +130,11 @@ export function ExpiryReport(): React.ReactElement {
           <Button icon={<PrinterOutlined />} onClick={handlePrint}>
             Print
           </Button>
-          <Button type="primary" icon={<ExportOutlined />} onClick={handleExport}>
-            Export
+          <Button icon={<FileExcelOutlined />} onClick={handleExportExcel}>
+            Export to Excel
+          </Button>
+          <Button icon={<FilePdfOutlined />} onClick={handleExportPdf}>
+            Export to PDF
           </Button>
         </div>
       </div>

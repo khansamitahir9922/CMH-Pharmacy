@@ -155,9 +155,11 @@ export const prescriptions = sqliteTable('prescriptions', {
   patient_age: integer('patient_age'),
   doctor_name: text('doctor_name'),
   prescription_date: text('prescription_date'),
+  medicines_prescribed: text('medicines_prescribed'),
   image_path: text('image_path'),
   notes: text('notes'),
   bill_id: integer('bill_id').references(() => bills.id),
+  is_deleted: integer('is_deleted', { mode: 'boolean' }).notNull().default(false),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`)
 })
 
