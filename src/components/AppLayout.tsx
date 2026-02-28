@@ -174,7 +174,7 @@ export function AppLayout(): React.ReactElement {
           theme="dark"
           mode="inline"
           selectedKeys={[
-            location.pathname.startsWith('/inventory') ? '/inventory' : location.pathname
+            location.pathname.startsWith('/inventory') ? '/inventory' : location.pathname.startsWith('/suppliers') ? '/suppliers' : location.pathname
           ]}
           items={siderMenuItems}
           onClick={({ key }) => navigate(key)}

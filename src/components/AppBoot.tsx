@@ -4,6 +4,7 @@ import { Spin } from 'antd'
 import { AppGuard } from '@/components/AppGuard'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/AppLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { SetupWizard } from '@/pages/Auth/SetupWizard'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
@@ -13,6 +14,8 @@ import { InventoryDashboard } from '@/pages/Inventory/InventoryDashboard'
 import { StockTransactions } from '@/pages/Inventory/StockTransactions'
 import { ExpiryReport } from '@/pages/Inventory/ExpiryReport'
 import { SuppliersPage } from '@/pages/Suppliers/SuppliersPage'
+import { SupplierListPage } from '@/pages/Suppliers/SupplierListPage'
+import { PurchaseOrdersPage } from '@/pages/Suppliers/PurchaseOrdersPage'
 import { BillingPage } from '@/pages/Billing/BillingPage'
 import { PrescriptionsPage } from '@/pages/Prescriptions/PrescriptionsPage'
 import { ReportsPage } from '@/pages/Reports/ReportsPage'
@@ -65,10 +68,11 @@ export function AppBoot(): React.ReactElement {
   }
 
   return (
-    <Routes>
-      <Route path="/setup" element={<SetupWizard />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/setup" element={<SetupWizard />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route
         path="/"
         element={
           <AppGuard>
@@ -86,13 +90,17 @@ export function AppBoot(): React.ReactElement {
           <Route path="transactions" element={<StockTransactions />} />
           <Route path="expiry" element={<ExpiryReport />} />
         </Route>
-        <Route path="suppliers" element={<SuppliersPage />} />
+        <Route path="suppliers" element={<SuppliersPage />}>
+          <Route index element={<SupplierListPage />} />
+          <Route path="orders" element={<PurchaseOrdersPage />} />
+        </Route>
         <Route path="billing" element={<BillingPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+        </Route>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </ErrorBoundary>
   )
 }
