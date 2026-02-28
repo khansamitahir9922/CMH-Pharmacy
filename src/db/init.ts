@@ -5,12 +5,14 @@ import * as schema from './schema'
 
 let db: BetterSQLite3Database<typeof schema> | null = null
 let sqlite: Database.Database | null = null
+let _dbPath: string = ''
 
 /**
  * Opens (or creates) the SQLite database, runs all migrations,
  * seeds default data, and returns a Drizzle ORM instance.
  */
 export function initDatabase(dbPath: string): BetterSQLite3Database<typeof schema> {
+  _dbPath = dbPath
   sqlite = new Database(dbPath)
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('foreign_keys = ON')
@@ -34,6 +36,22 @@ export function getDb(): BetterSQLite3Database<typeof schema> {
 export function getSqlite(): Database.Database {
   if (!sqlite) throw new Error('Database not initialized — call initDatabase() first')
   return sqlite
+}
+
+/** Returns the database file path (for backup/restore). */
+export function getDbPath(): string {
+  return _dbPath
+}
+
+/** Close the database (for restore before overwriting file). */
+export function closeDatabase(): void {
+  if (sqlite) {
+    try {
+      sqlite.close()
+    } catch {}
+    sqlite = null
+  }
+  db = null
 }
 
 function createTables(conn: Database.Database): void {
@@ -243,11 +261,15 @@ function seedDefaults(conn: Database.Database): void {
     ['pharmacy_name', 'SKBZ/CMH RAWALAKOT PHARMACY'],
     ['pharmacy_address', ''],
     ['pharmacy_phone', ''],
+    ['pharmacy_email', ''],
+    ['license_no', ''],
+    ['ntn', ''],
     ['gst_percent', '0'],
     ['currency_symbol', 'Rs.'],
     ['session_timeout_minutes', '30'],
     ['backup_folder', ''],
-    ['auto_backup_enabled', 'false']
+    ['auto_backup_enabled', 'false'],
+    ['auto_backup_time', 'midnight']
   ]
 
   for (const [key, value] of defaultSettings) {

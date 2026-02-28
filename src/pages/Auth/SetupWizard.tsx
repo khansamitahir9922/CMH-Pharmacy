@@ -63,17 +63,18 @@ export function SetupWizard(): React.ReactElement {
       {/* Left visual panel with hospital photo + gradient overlay and logo (same style as Login) */}
       <div
         style={{
-          flex: 0.5,
-          minWidth: 360,
-          maxWidth: 520,
+          flex: '0 0 58%',
+          minWidth: 420,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: 32,
           backgroundImage:
             'linear-gradient(135deg, rgba(26,86,219,0.88) 0%, rgba(15,59,149,0.9) 35%, rgba(236,72,153,0.85) 70%, rgba(249,115,22,0.9) 100%), url(/hospital.jpg)',
-          backgroundSize: 'cover',
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
+          backgroundColor: 'rgba(15,59,149,0.95)',
           color: '#F9FAFB'
         }}
       >
@@ -124,7 +125,7 @@ export function SetupWizard(): React.ReactElement {
       {/* Right setup form panel */}
       <div
         style={{
-          flex: 0.5,
+          flex: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -249,6 +250,14 @@ export function SetupWizard(): React.ReactElement {
               </Button>
             </Form.Item>
           </Form>
+
+          <Button
+            type="link"
+            onClick={() => navigate('/login')}
+            style={{ marginTop: 16, padding: 0 }}
+          >
+            Already have an account? Sign in
+          </Button>
         </Card>
       </div>
     </div>

@@ -16,6 +16,8 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useAlertStore } from '@/store/alertStore'
+import { StartupAlertModal } from '@/components/StartupAlertModal'
+import { ShortcutsHelpModal } from '@/components/ShortcutsHelpModal'
 
 const { Header, Sider, Content, Footer } = Layout
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
@@ -27,6 +29,7 @@ export function AppLayout(): React.ReactElement {
   const [collapsed, setCollapsed] = useState(false)
   const [logoError, setLogoError] = useState(false)
   const [sessionExpiredOpen, setSessionExpiredOpen] = useState(false)
+  const [startupAlertShown, setStartupAlertShown] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
@@ -123,6 +126,13 @@ export function AppLayout(): React.ReactElement {
       >
         <p>Your session has expired. Please sign in again.</p>
       </Modal>
+
+      <StartupAlertModal
+        visible={!startupAlertShown && (summary.expired > 0 || summary.lowStock > 0)}
+        onClose={() => setStartupAlertShown(true)}
+        expiredCount={summary.expired}
+        lowStockCount={summary.lowStock}
+      />
 
       <Sider
         className="app-sider"
@@ -290,6 +300,7 @@ export function AppLayout(): React.ReactElement {
           </Footer>
         )}
       </Layout>
+      <ShortcutsHelpModal />
     </Layout>
   )
 }

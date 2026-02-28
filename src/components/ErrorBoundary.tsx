@@ -47,11 +47,11 @@ export class ErrorBoundary extends Component<Props, State> {
         >
           <Result
             status="error"
-            title="Something went wrong"
-            subTitle="The app ran into an error. You can try reloading the page to continue."
+            title="Something went wrong."
+            subTitle="An unhandled error occurred. You can reload the application to continue."
             extra={
               <Button type="primary" onClick={this.handleReload}>
-                Reload app
+                Reload Application
               </Button>
             }
           />

@@ -72,3 +72,32 @@ export function update(key: string, value: string | null): void {
     .run()
 }
 
+/**
+ * Update multiple settings at once. Creates keys if missing.
+ */
+export function updateAll(payload: Record<string, string | number | null | undefined>): void {
+  const now = dayjs().toISOString()
+  const db = getDb()
+  for (const [k, val] of Object.entries(payload)) {
+    const key = String(k ?? '').trim()
+    if (!key) continue
+    const value = val == null ? null : String(val)
+    const existing = db
+      .select({ key: settingsTable.key })
+      .from(settingsTable)
+      .where(eq(settingsTable.key, key))
+      .limit(1)
+      .all()[0] as { key: string } | undefined
+    if (existing) {
+      db.update(settingsTable)
+        .set({ value, updated_at: now })
+        .where(eq(settingsTable.key, key))
+        .run()
+    } else {
+      db.insert(settingsTable)
+        .values({ key, value, updated_at: now })
+        .run()
+    }
+  }
+}
+

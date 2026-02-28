@@ -1,5 +1,5 @@
-appId: com.skbz.cmh.rawalakot.pharmacy
-productName: SKBZ/CMH RAWALAKOT PHARMACY
+appId: com.msms.pharmacy
+productName: Medical Store Management System
 directories:
   buildResources: build
   output: dist-installer
@@ -8,11 +8,14 @@ files:
   - package.json
 win:
   target: nsis
-  icon: public/icon.png
+  icon: public/icon.ico
+  signAndEditExecutable: false
 nsis:
   oneClick: false
-  perMachine: false
   allowToChangeInstallationDirectory: true
+  installerIcon: public/icon.ico
+  uninstallerIcon: public/icon.ico
+  shortcutName: MSMS
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: SKBZ/CMH RAWALAKOT PHARMACY
+  perMachine: false

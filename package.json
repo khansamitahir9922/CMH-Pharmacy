@@ -25,7 +25,8 @@
     "xlsx": "^0.18.5",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
-    "archiver": "^7.0.1"
+    "archiver": "^7.0.1",
+    "adm-zip": "^0.5.16"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -40,7 +41,9 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/archiver": "^6.0.3",
     "drizzle-kit": "^0.28.0",
-    "electron-rebuild": "^3.2.9"
+    "electron-rebuild": "^3.2.9",
+    "sharp": "^0.33.5",
+    "to-ico": "^1.1.0"
   },
   "engines": {
     "node": ">=20.0.0 <23.0.0"

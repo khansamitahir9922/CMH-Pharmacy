@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Button, DatePicker, Input, Select, Space, Table, Tag, Typography, Tooltip, notification, Switch } from 'antd'
+import { Button, DatePicker, Empty, Input, Select, Space, Table, Tag, Typography, Tooltip, notification, Switch } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { EyeOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -221,6 +221,7 @@ export function BillHistoryPage(): React.ReactElement {
         columns={columns}
         dataSource={rows}
         loading={loading}
+        locale={{ emptyText: <Empty description="No bills found for the selected period." /> }}
         pagination={{
           current: page,
           pageSize,

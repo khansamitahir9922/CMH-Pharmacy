@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/AppLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { SetupWizard } from '@/pages/Auth/SetupWizard'
 import { LoginPage } from '@/pages/Auth/LoginPage'
+import { AppLoadingScreen } from '@/pages/Auth/AppLoadingScreen'
 import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
 import { MedicineListPage } from '@/pages/Medicines/MedicineListPage'
 import { InventoryPage } from '@/pages/Inventory/InventoryPage'
@@ -80,6 +81,16 @@ export function AppBoot(): React.ReactElement {
       <Routes>
         <Route path="/setup" element={<SetupWizard />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/app-loading"
+          element={
+            <AppGuard>
+              <ProtectedRoute>
+                <AppLoadingScreen />
+              </ProtectedRoute>
+            </AppGuard>
+          }
+        />
         <Route
         path="/"
         element={

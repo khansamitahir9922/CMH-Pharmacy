@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { initDatabase } from '../src/db/init'
 import { registerAuthHandlers } from './ipc/auth'
@@ -10,7 +10,9 @@ import { registerPrescriptionsHandlers } from './ipc/prescriptions'
 import { registerReportsHandlers } from './ipc/reports'
 import { registerExportHandlers } from './ipc/export'
 import { registerSettingsHandlers } from './ipc/settings'
+import { registerUsersHandlers } from './ipc/users'
 import { registerBackupHandlers } from './ipc/backup'
+import { registerAuditHandlers } from './ipc/audit'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -53,7 +55,14 @@ app.whenReady().then(() => {
   registerReportsHandlers()
   registerExportHandlers()
   registerSettingsHandlers()
+  registerUsersHandlers()
   registerBackupHandlers()
+  registerAuditHandlers()
+
+  ipcMain.handle('app:restart', () => {
+    app.relaunch()
+    app.quit()
+  })
 
   createWindow()
 

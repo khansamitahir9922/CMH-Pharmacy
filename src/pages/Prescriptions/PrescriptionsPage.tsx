@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Typography, Button, Input, Table, Space, Modal, message } from 'antd'
+import { Typography, Button, Empty, Input, Table, Space, Modal, message } from 'antd'
 import { PlusOutlined, EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -131,6 +131,7 @@ export function PrescriptionsPage(): React.ReactElement {
         columns={columns}
         dataSource={rows}
         loading={loading}
+        locale={{ emptyText: <Empty description="No prescriptions found. Click New Prescription to add one." /> }}
         pagination={{
           current: page,
           pageSize,
