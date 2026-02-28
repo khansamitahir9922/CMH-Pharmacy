@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Modal, Form, Input, InputNumber, Select, DatePicker, Row, Col, Spin, Button, notification } from 'antd'
+import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import type { MedicineWithStock } from '@/hooks/useMedicines'
@@ -273,7 +274,7 @@ export function MedicineFormModal({
                   { type: 'number', min: 0, message: 'Opening stock cannot be negative.' }
                 ]}
               >
-                <InputNumber min={0} style={{ width: '100%' }} disabled={isEdit} />
+                <InputNumber min={0} style={{ width: '100%' }} disabled={isEdit} onFocus={selectAllOnFocus} />
               </Form.Item>
               <Form.Item
                 name="min_stock_level"
@@ -283,21 +284,21 @@ export function MedicineFormModal({
                   { type: 'number', min: 1, message: 'Minimum stock level must be at least 1.' }
                 ]}
               >
-                <InputNumber min={1} style={{ width: '100%' }} />
+                <InputNumber min={1} style={{ width: '100%' }} onFocus={selectAllOnFocus} />
               </Form.Item>
               <Form.Item
                 name="buy_price_rs"
                 label="Buy Price (Rs.)"
                 rules={[{ required: true, message: 'Please enter buy price.' }]}
               >
-                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." />
+                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." onFocus={selectAllOnFocus} />
               </Form.Item>
               <Form.Item
                 name="sell_price_rs"
                 label="Sell Price (Rs.)"
                 rules={[{ required: true, message: 'Please enter sell price.' }]}
               >
-                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." />
+                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." onFocus={selectAllOnFocus} />
               </Form.Item>
             </Col>
             <Col span={12}>

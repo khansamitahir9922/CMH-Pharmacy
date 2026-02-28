@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AutoComplete, Button, Divider, Empty, Input, InputNumber, Radio, Space, Table, Typography, notification } from 'antd'
+import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -77,7 +78,8 @@ export function POSPage(): React.ReactElement {
     const el = tableWrapRef.current
     const ro = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect?.height ?? 0
-      setTableY(Math.max(160, Math.floor(h - 8)))
+      // Reserve bottom space so the last row is fully visible when scrollbar is at the end
+      setTableY(Math.max(160, Math.floor(h - 28)))
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -253,6 +255,7 @@ export function POSPage(): React.ReactElement {
           max={999999}
           value={r.qty}
           onChange={(v) => handleQtyChange(r.medicineId, v)}
+          onFocus={selectAllOnFocus}
           style={{ width: '100%' }}
         />
       )
@@ -427,7 +430,7 @@ export function POSPage(): React.ReactElement {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>Discount %</span>
           </div>
-          <InputNumber min={0} max={100} value={discountPercent} onChange={(v) => setDiscountPercent(clampInt(toInt(v ?? 0), 0, 100))} style={{ width: 120 }} />
+          <InputNumber min={0} max={100} value={discountPercent} onChange={(v) => setDiscountPercent(clampInt(toInt(v ?? 0), 0, 100))} onFocus={selectAllOnFocus} style={{ width: 120 }} />
 
           <div>Discount Amount</div>
           <div style={{ fontWeight: 700 }}>-{formatCurrency(discountAmount)}</div>
@@ -435,7 +438,7 @@ export function POSPage(): React.ReactElement {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>Tax %</span>
           </div>
-          <InputNumber min={0} max={100} value={taxPercent} onChange={(v) => setTaxPercent(clampInt(toInt(v ?? 0), 0, 100))} style={{ width: 120 }} />
+          <InputNumber min={0} max={100} value={taxPercent} onChange={(v) => setTaxPercent(clampInt(toInt(v ?? 0), 0, 100))} onFocus={selectAllOnFocus} style={{ width: 120 }} />
 
           <div>Tax Amount</div>
           <div style={{ fontWeight: 700 }}>{formatCurrency(taxAmount)}</div>
@@ -468,6 +471,7 @@ export function POSPage(): React.ReactElement {
                 step={0.01}
                 value={amountReceived / 100}
                 onChange={(v) => setAmountReceived(Math.round((Number(v) || 0) * 100))}
+                onFocus={selectAllOnFocus}
                 style={{ width: '100%' }}
                 placeholder="Amount Received (Rs.)"
               />

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Modal, Form, Input, InputNumber, DatePicker, Button, Upload, Select, notification } from 'antd'
+import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { UploadFile } from 'antd'
 import { UploadOutlined, FileImageOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -151,7 +152,7 @@ export function PrescriptionFormModal({ open, editId, onClose, onSuccess }: Pres
           <Input placeholder="Patient name" />
         </Form.Item>
         <Form.Item name="patient_age" label="Patient Age (optional)">
-          <InputNumber min={1} max={150} style={{ width: '100%' }} placeholder="Age" />
+          <InputNumber min={1} max={150} style={{ width: '100%' }} placeholder="Age" onFocus={selectAllOnFocus} />
         </Form.Item>
         <Form.Item name="doctor_name" label="Doctor Name" rules={[{ required: true, message: 'Required.' }]}>
           <Input placeholder="Doctor name" />

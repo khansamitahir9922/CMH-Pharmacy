@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { Modal, Form, Select, DatePicker, InputNumber, Input, Button, Table, notification } from 'antd'
+import { selectAllOnFocus } from '../../utils/inputUtils'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
@@ -210,12 +211,13 @@ export function PurchaseOrderModal({ open, onClose, onSuccess }: PurchaseOrderMo
           }))}
           fieldNames={{ value: 'value', label: 'label' }}
         />
-        <InputNumber min={1} value={qty} onChange={(v) => setQty(v ?? 1)} placeholder="Qty" style={{ width: 80 }} />
+        <InputNumber min={1} value={qty} onChange={(v) => setQty(v ?? 1)} onFocus={selectAllOnFocus} placeholder="Qty" style={{ width: 80 }} />
         <InputNumber
           min={0}
           step={0.01}
           value={unitPrice}
           onChange={(v) => setUnitPrice(v ?? 0)}
+          onFocus={selectAllOnFocus}
           placeholder="Unit price (Rs.)"
           style={{ width: 120 }}
           addonAfter="Rs."

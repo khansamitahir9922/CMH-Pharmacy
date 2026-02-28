@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Card, Button, Table, Switch, Select, Input, Modal, notification } from 'antd'
-import { CloudUploadOutlined, FolderOpenOutlined, RollbackOutlined } from '@ant-design/icons'
+import { CloudUploadOutlined, FolderOpenOutlined, RollbackOutlined, ExperimentOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 
 interface BackupLogRow {
@@ -29,6 +29,8 @@ function formatBytes(n: number | null): string {
 export function BackupRestoreTab(): React.ReactElement {
   const [creating, setCreating] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+  const [dbFileSize, setDbFileSize] = useState<number | null>(null)
   const [logs, setLogs] = useState<BackupLogRow[]>([])
   const [backupFolder, setBackupFolder] = useState('')
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false)
@@ -38,6 +40,12 @@ export function BackupRestoreTab(): React.ReactElement {
 
   const fetchLogs = (): void => {
     window.api.invoke<BackupLogRow[]>('backup:getLogs').then((data) => setLogs(data ?? []))
+  }
+
+  const fetchDbFileSize = (): void => {
+    window.api.invoke<{ path: string; sizeBytes: number }>('backup:getDbFileSize').then((res) => {
+      if (res?.sizeBytes != null) setDbFileSize(res.sizeBytes)
+    })
   }
 
   const loadSettings = (): void => {
@@ -53,6 +61,7 @@ export function BackupRestoreTab(): React.ReactElement {
   useEffect(() => {
     fetchLogs()
     loadSettings()
+    fetchDbFileSize()
   }, [])
 
   const handleCreateBackup = (): void => {
@@ -102,6 +111,22 @@ export function BackupRestoreTab(): React.ReactElement {
     setRestoreConfirmOpen(true)
   }
 
+  const handleSeedDummy = (): void => {
+    setSeeding(true)
+    const count = 10_000
+    window.api
+      .invoke<number>('medicines:seedDummy', count)
+      .then((added) => {
+        notification.success({
+          message: 'Dummy data added',
+          description: `${added.toLocaleString()} dummy medicines (with stock) were added. Check Medicines list and database size below.`
+        })
+        fetchDbFileSize()
+      })
+      .catch((e) => notification.error({ message: 'Seed failed', description: String(e?.message || e) }))
+      .finally(() => setSeeding(false))
+  }
+
   const handleRestoreConfirm = (): void => {
     setRestoreConfirmOpen(false)
     window.api.invoke<string | null>('backup:showRestoreFileDialog').then((path) => {
@@ -135,6 +160,11 @@ export function BackupRestoreTab(): React.ReactElement {
 
   return (
     <Card title="Backup & Restore">
+      {dbFileSize != null && (
+        <p style={{ marginBottom: 16, color: '#666' }}>
+          Database file size: <strong>{formatBytes(dbFileSize)}</strong>
+        </p>
+      )}
       <div style={{ marginBottom: 24 }}>
         <Button
           type="primary"
@@ -193,6 +223,19 @@ export function BackupRestoreTab(): React.ReactElement {
           Restore from Backup
         </Button>
       </div>
+
+      <Card type="inner" title="Load test data" style={{ marginTop: 24 }}>
+        <p style={{ marginBottom: 12, color: '#666' }}>
+          Add 10,000 dummy medicines (with stock and categories) to test performance and see how the database size grows.
+        </p>
+        <Button
+          icon={<ExperimentOutlined />}
+          onClick={handleSeedDummy}
+          loading={seeding}
+        >
+          Seed 10,000 dummy medicines
+        </Button>
+      </Card>
 
       <Table
         rowKey="id"

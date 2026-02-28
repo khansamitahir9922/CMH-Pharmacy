@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export interface InventorySummaryCounts {
   totalMedicines: number
+  totalStockUnits: number
   lowStock: number
   expiringThisMonth: number
   expired: number
@@ -21,6 +22,7 @@ interface AlertState {
 export const useAlertStore = create<AlertState>((set) => ({
   summary: {
     totalMedicines: 0,
+    totalStockUnits: 0,
     lowStock: 0,
     expiringThisMonth: 0,
     expired: 0

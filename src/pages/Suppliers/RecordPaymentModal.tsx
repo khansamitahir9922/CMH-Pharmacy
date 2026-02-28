@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Modal, Form, InputNumber, DatePicker, Input, Button, notification } from 'antd'
+import { selectAllOnFocus } from '../../utils/inputUtils'
 import dayjs from 'dayjs'
 import { formatCurrency } from '@/utils/expiryStatus'
 
@@ -93,7 +94,7 @@ export function RecordPaymentModal({ orderId, onClose, onSuccess }: RecordPaymen
             { type: 'number', min: 0.01, message: 'Amount must be greater than 0.' }
           ]}
         >
-          <InputNumber min={0.01} max={remainingRs} step={0.01} style={{ width: '100%' }} addonAfter="Rs." />
+          <InputNumber min={0.01} max={remainingRs} step={0.01} style={{ width: '100%' }} addonAfter="Rs." onFocus={selectAllOnFocus} />
         </Form.Item>
         <Form.Item name="payment_date" label="Payment Date" rules={[{ required: true }]}>
           <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />

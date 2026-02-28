@@ -124,7 +124,8 @@ function normalizePaymentMode(mode: string): PaymentMode {
  */
 export function createBill(input: CreateBillInput): BillDetailResult {
   const sqlite = getSqlite()
-  const now = dayjs().toISOString()
+  // Use local datetime so "today" in dashboard (local date) matches bill date
+  const now = dayjs().format('YYYY-MM-DDTHH:mm:ss.SSS')
   const datePart = dayjs().format('YYYYMMDD')
   const createdBy = input.createdBy ?? null
 
@@ -490,7 +491,7 @@ export function getBillById(billId: number): BillDetailResult | null {
  */
 export function voidBill(input: VoidBillInput): void {
   const sqlite = getSqlite()
-  const now = dayjs().toISOString()
+  const now = dayjs().format('YYYY-MM-DDTHH:mm:ss.SSS')
   const billId = toInt(input.billId)
   if (!billId) throw new Error('Invalid bill.')
   const reason = String(input.reason ?? '').trim()

@@ -8,6 +8,7 @@ import {
   getCategories,
   search,
   exportData,
+  seedDummyMedicines,
   type CreateMedicineInput,
   type UpdateMedicineInput
 } from '../../src/db/queries/medicines'
@@ -86,5 +87,10 @@ export function registerMedicinesHandlers(): void {
 
   ipcMain.handle('medicines:exportData', async () => {
     return exportData()
+  })
+
+  ipcMain.handle('medicines:seedDummy', async (_event, count?: number) => {
+    const n = Math.min(Math.max(1, Number(count) || 10_000), 50_000)
+    return seedDummyMedicines(n)
   })
 }

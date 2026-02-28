@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Form, Input, InputNumber, Select, Button, Card, notification } from 'antd'
+import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { Store } from 'antd/es/form/interface'
 
 const SESSION_OPTIONS = [
@@ -90,7 +91,7 @@ export function PharmacyProfileTab(): React.ReactElement {
           rules={[{ type: 'number', min: 0, max: 30 }]}
           initialValue={0}
         >
-          <InputNumber min={0} max={30} style={{ width: 120 }} addonAfter="%" />
+          <InputNumber min={0} max={30} style={{ width: 120 }} addonAfter="%" onFocus={selectAllOnFocus} />
         </Form.Item>
         <Form.Item name="currency_symbol" label="Currency Symbol">
           <Select options={CURRENCY_OPTIONS} style={{ width: 120 }} />

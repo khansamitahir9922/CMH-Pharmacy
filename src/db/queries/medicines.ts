@@ -1,5 +1,5 @@
 import { eq, and, like, or } from 'drizzle-orm'
-import { getDb } from '../init'
+import { getDb, getSqlite } from '../init'
 import { medicines, medicineCategories, stock, stockTransactions } from '../schema'
 import dayjs from 'dayjs'
 
@@ -301,6 +301,72 @@ export function remove(id: number): void {
 export function getCategories(): { id: number; name: string }[] {
   const db = getDb()
   return db.select({ id: medicineCategories.id, name: medicineCategories.name }).from(medicineCategories).all()
+}
+
+const DUMMY_FIRMS = ['Sun Pharma', 'Cipla', 'Dr. Reddy\'s', 'Lupin', 'Zydus', 'Torrent', 'Cadila', 'Glenmark', 'Dummy Labs', 'Test Mfg Co']
+const DUMMY_SHELVES = ['A-1', 'A-2', 'B-1', 'B-2', 'C-1', 'C-2', 'D-1', 'D-2']
+
+/**
+ * Seed dummy medicines (and stock rows) for load/performance testing.
+ * Uses a single transaction and batch inserts; safe to call with 10000+.
+ * @param count Number of dummy medicines to create (default 10000)
+ * @returns Number of medicines inserted
+ */
+export function seedDummyMedicines(count = 10_000): number {
+  const conn = getSqlite()
+  const categories = getCategories()
+  const categoryIds = categories.length > 0 ? categories.map((c) => c.id) : [null]
+
+  const ins = conn.prepare(`
+    INSERT INTO medicines (name, category_id, batch_no, barcode, mfg_date, expiry_date, received_date, order_date, firm_name, opening_stock, unit_price_buy, unit_price_sell, min_stock_level, shelf_location, notes, is_deleted, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+  `)
+  const stockIns = conn.prepare(`
+    INSERT INTO stock (medicine_id, current_quantity, updated_at) VALUES (?, ?, datetime('now'))
+  `)
+  const txnIns = conn.prepare(`
+    INSERT INTO stock_transactions (medicine_id, transaction_type, quantity, reason, created_at) VALUES (?, 'in', ?, 'Opening Stock', datetime('now'))
+  `)
+
+  const now = dayjs()
+  const mfgDates = [
+    now.subtract(18, 'month').format('YYYY-MM-DD'),
+    now.subtract(12, 'month').format('YYYY-MM-DD'),
+    now.subtract(6, 'month').format('YYYY-MM-DD')
+  ]
+  const expDates = [
+    now.add(6, 'month').format('YYYY-MM-DD'),
+    now.add(12, 'month').format('YYYY-MM-DD'),
+    now.add(18, 'month').format('YYYY-MM-DD')
+  ]
+
+  conn.transaction(() => {
+    for (let i = 0; i < count; i++) {
+      const n = i + 1
+      const name = `Dummy Medicine ${n}`
+      const categoryId = categoryIds[i % categoryIds.length]
+      const batchNo = `BATCH-${String(n).padStart(6, '0')}`
+      const barcode = n % 3 === 0 ? `BAR${n}` : null
+      const mfgDate = mfgDates[i % 3]
+      const expDate = expDates[i % 3]
+      const recvDate = now.subtract(i % 60, 'day').format('YYYY-MM-DD')
+      const orderDate = now.subtract(i % 90, 'day').format('YYYY-MM-DD')
+      const firm = DUMMY_FIRMS[i % DUMMY_FIRMS.length]
+      const openingStock = 10 + (i % 491)
+      const buy = 50 + (i % 450)
+      const sell = Math.round(buy * (1.1 + (i % 20) / 100))
+      const shelf = DUMMY_SHELVES[i % DUMMY_SHELVES.length]
+      const notes = i % 5 === 0 ? `Test note for medicine ${n}` : null
+
+      ins.run(name, categoryId, batchNo, barcode, mfgDate, expDate, recvDate, orderDate, firm, openingStock, buy, sell, 10, shelf, notes)
+      const row = conn.prepare('SELECT last_insert_rowid() as id').get() as { id: number }
+      const medicineId = row.id
+      stockIns.run(medicineId, openingStock)
+      txnIns.run(medicineId, openingStock)
+    }
+  })()
+
+  return count
 }
 
 const searchSelect = {

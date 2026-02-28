@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 
 export interface InventorySummary {
   totalMedicines: number
+  totalStockUnits: number
   lowStock: number
   expiringThisMonth: number
   expired: number
@@ -75,12 +76,14 @@ export function getSummary(): InventorySummary {
   const t30 = addDays(30)
 
   let totalMedicines = rows.length
+  let totalStockUnits = 0
   let lowStock = 0
   let expiringThisMonth = 0
   let expired = 0
 
   for (const r of rows) {
     const qty = r.current_quantity ?? 0
+    totalStockUnits += qty
     const min = r.min_stock_level ?? 0
     if (qty < min) lowStock++
     const exp = r.expiry_date
@@ -90,7 +93,7 @@ export function getSummary(): InventorySummary {
     }
   }
 
-  return { totalMedicines, lowStock, expiringThisMonth, expired }
+  return { totalMedicines, totalStockUnits, lowStock, expiringThisMonth, expired }
 }
 
 /**

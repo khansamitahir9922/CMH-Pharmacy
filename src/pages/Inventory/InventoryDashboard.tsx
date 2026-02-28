@@ -13,6 +13,7 @@ import type { ColumnsType } from 'antd/es/table'
 
 interface Summary {
   totalMedicines: number
+  totalStockUnits: number
   lowStock: number
   expiringThisMonth: number
   expired: number
@@ -123,7 +124,13 @@ export function InventoryDashboard(): React.ReactElement {
           <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#1A56DB' }}>
             <MedicineBoxOutlined style={{ fontSize: 28, color: '#1A56DB', marginBottom: 8 }} />
             <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{summaryData.totalMedicines}</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>Total Medicines</div>
+            <div style={{ color: '#6B7280', fontSize: 13 }}>Medicine Products</div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#13c2c2' }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{(summaryData.totalStockUnits ?? 0).toLocaleString()}</div>
+            <div style={{ color: '#6B7280', fontSize: 13 }}>Total Stock (units)</div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>

@@ -18,6 +18,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate } from '@/utils/expiryStatus'
+import { selectAllOnFocus } from '@/utils/inputUtils'
 
 interface MedicineOption {
   id: number
@@ -218,7 +219,7 @@ export function StockTransactions(): React.ReactElement {
               { type: 'number', min: 1, message: 'Quantity must be greater than 0.' }
             ]}
           >
-            <InputNumber min={1} style={{ width: 160 }} />
+            <InputNumber min={1} style={{ width: 160 }} onFocus={selectAllOnFocus} />
           </Form.Item>
           <Form.Item name="reason" label="Reason" rules={[{ required: true, message: 'Enter reason.' }]}>
             <Input placeholder="Reason for transaction" />

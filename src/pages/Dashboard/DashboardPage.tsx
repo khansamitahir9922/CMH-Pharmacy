@@ -3,7 +3,7 @@ import { Typography, Card, Row, Col, Table, Spin, Button, Skeleton } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/utils/expiryStatus'
@@ -16,6 +16,7 @@ interface DailySummary {
 
 interface InventorySummary {
   totalMedicines: number
+  totalStockUnits: number
   lowStock: number
   expiringThisMonth: number
   expired: number
@@ -53,6 +54,7 @@ const CHART_COLORS = ['#1890ff', '#52c41a', '#faad14', '#722ed1', '#eb2f96', '#1
 
 export function DashboardPage(): React.ReactElement {
   const navigate = useNavigate()
+  const location = useLocation()
   const { currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null)
@@ -124,6 +126,17 @@ export function DashboardPage(): React.ReactElement {
   useEffect(() => {
     fetchDashboard(true)
   }, [fetchDashboard])
+
+  // Refetch when user navigates back to dashboard or brings window to focus, so Stock Out / billing updates show
+  useEffect(() => {
+    const onFocus = (): void => {
+      if (location.pathname === '/dashboard' || location.pathname.endsWith('/dashboard')) {
+        fetchDashboard(false)
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [fetchDashboard, location.pathname])
 
   useEffect(() => {
     fetchSalesChart()
@@ -201,10 +214,20 @@ export function DashboardPage(): React.ReactElement {
         </Col>
         <Col xs={24} sm={12} md={8} lg={6}>
           <Card size="small" style={{ borderLeft: '4px solid #52c41a' }}>
-            <Typography.Text type="secondary">Total Medicines</Typography.Text>
+            <Typography.Text type="secondary">Medicine Products</Typography.Text>
             <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
               {inventorySummary?.totalMedicines ?? 0}
             </Typography.Title>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>product types in catalog</Typography.Text>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={6}>
+          <Card size="small" style={{ borderLeft: '4px solid #13c2c2' }}>
+            <Typography.Text type="secondary">Total Stock (units)</Typography.Text>
+            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
+              {(inventorySummary?.totalStockUnits ?? 0).toLocaleString()}
+            </Typography.Title>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>reduces when you sell</Typography.Text>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={8} lg={6}>

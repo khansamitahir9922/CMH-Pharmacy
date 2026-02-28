@@ -123,4 +123,11 @@ export function registerBackupHandlers(): void {
     if (result.canceled || !result.filePaths?.length) return null
     return result.filePaths[0]
   })
+
+  ipcMain.handle('backup:getDbFileSize', async (): Promise<{ path: string; sizeBytes: number }> => {
+    const path = getDbPath()
+    if (!path || !existsSync(path)) return { path: path ?? '', sizeBytes: 0 }
+    const stat = statSync(path)
+    return { path, sizeBytes: stat.size }
+  })
 }
