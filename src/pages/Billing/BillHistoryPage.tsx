@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { Button, DatePicker, Empty, Input, Select, Space, Table, Tag, Typography, Tooltip, notification, Switch } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { EyeOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -8,6 +8,7 @@ import { formatCurrency } from '@/utils/expiryStatus'
 import { BillReceiptModal, type ReceiptData } from './BillReceiptModal'
 import { VoidBillModal } from './VoidBillModal'
 import { useNavigate } from 'react-router-dom'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 type PaymentMode = 'cash' | 'card' | 'credit'
 
@@ -43,7 +44,9 @@ export function BillHistoryPage(): React.ReactElement {
 
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [customerSearch, setCustomerSearch] = useState('')
+  const debouncedCustomerSearch = useDebouncedValue(customerSearch, 300)
   const [paymentMode, setPaymentMode] = useState<PaymentMode | 'all'>('all')
+  const abortRef = useRef(false)
   const [includeVoided, setIncludeVoided] = useState(false)
 
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null)
@@ -55,6 +58,7 @@ export function BillHistoryPage(): React.ReactElement {
   const [voidTarget, setVoidTarget] = useState<BillListRow | null>(null)
 
   const fetchBills = (): void => {
+    abortRef.current = false
     setLoading(true)
     const startDate = dateRange?.[0]?.format('YYYY-MM-DD') ?? null
     const endDate = dateRange?.[1]?.format('YYYY-MM-DD') ?? null
@@ -62,21 +66,26 @@ export function BillHistoryPage(): React.ReactElement {
       .invoke<{ data: BillListRow[]; total: number }>('billing:getBills', {
         startDate,
         endDate,
-        customerSearch: customerSearch.trim() || null,
+        customerSearch: debouncedCustomerSearch.trim() || null,
         paymentMode: paymentMode === 'all' ? null : paymentMode,
         includeVoided,
         page,
         pageSize
       })
       .then((res) => {
+        if (abortRef.current) return
         setRows(res?.data ?? [])
         setTotal(res?.total ?? 0)
       })
       .catch(() => {
-        setRows([])
-        setTotal(0)
+        if (!abortRef.current) {
+          setRows([])
+          setTotal(0)
+        }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!abortRef.current) setLoading(false)
+      })
   }
 
   const fetchDailySummary = (): void => {
@@ -89,8 +98,9 @@ export function BillHistoryPage(): React.ReactElement {
 
   useEffect(() => {
     fetchBills()
+    return () => { abortRef.current = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, dateRange, customerSearch, paymentMode, includeVoided])
+  }, [page, pageSize, dateRange, debouncedCustomerSearch, paymentMode, includeVoided])
 
   useEffect(() => {
     fetchDailySummary()

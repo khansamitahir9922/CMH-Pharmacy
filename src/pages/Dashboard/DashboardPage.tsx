@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Typography, Card, Row, Col, Table, Spin, Button } from 'antd'
+import { Typography, Card, Row, Col, Table, Spin, Button, Skeleton } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
@@ -136,14 +136,6 @@ export function DashboardPage(): React.ReactElement {
 
   const userName = currentUser?.full_name?.trim() || currentUser?.username || 'User'
 
-  if (loading) {
-    return (
-      <div style={{ padding: 24, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-        <Spin size="large" />
-      </div>
-    )
-  }
-
   const billColumns: ColumnsType<BillListRow> = [
     { title: 'Bill#', dataIndex: 'bill_number', key: 'bill_number', render: (v, r) => <a onClick={() => navigate('/billing/history')}>{v}</a> },
     { title: 'Customer', dataIndex: 'customer_name', key: 'customer_name', render: (v) => v ?? '—' },
@@ -170,6 +162,26 @@ export function DashboardPage(): React.ReactElement {
         </Button>
       </div>
 
+      {loading ? (
+        <>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Col xs={24} sm={12} md={8} lg={6} key={i}>
+                <Card size="small"><Skeleton active paragraph={{ rows: 1 }} /></Card>
+              </Col>
+            ))}
+          </Row>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={24} lg={12}><Card size="small"><Skeleton active paragraph={{ rows: 6 }} /></Card></Col>
+            <Col xs={24} lg={12}><Card size="small"><Skeleton active paragraph={{ rows: 6 }} /></Card></Col>
+          </Row>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}><Card size="small"><Skeleton active paragraph={{ rows: 4 }} /></Card></Col>
+            <Col xs={24} lg={12}><Card size="small"><Skeleton active paragraph={{ rows: 4 }} /></Card></Col>
+          </Row>
+        </>
+      ) : (
+        <>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={8} lg={6}>
           <Card size="small" style={{ borderLeft: '4px solid #1890ff' }}>
@@ -300,6 +312,8 @@ export function DashboardPage(): React.ReactElement {
           </Card>
         </Col>
       </Row>
+        </>
+      )}
     </div>
   )
 }

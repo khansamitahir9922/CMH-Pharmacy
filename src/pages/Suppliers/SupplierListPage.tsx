@@ -5,6 +5,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { formatCurrency } from '@/utils/expiryStatus'
 import { SupplierFormModal } from './SupplierFormModal'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 interface SupplierRow {
   id: number
@@ -20,6 +21,7 @@ interface SupplierRow {
 export function SupplierListPage(): React.ReactElement {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -27,7 +29,7 @@ export function SupplierListPage(): React.ReactElement {
   const [editInitial, setEditInitial] = useState<Partial<Record<string, unknown>> | undefined>(undefined)
 
   const fetchSuppliers = (searchTerm?: string): void => {
-    const term = searchTerm !== undefined ? searchTerm : search
+    const term = searchTerm !== undefined ? searchTerm : debouncedSearch
     setLoading(true)
     window.api
       .invoke<SupplierRow[]>('suppliers:getAll', term || undefined)
@@ -38,7 +40,7 @@ export function SupplierListPage(): React.ReactElement {
 
   useEffect(() => {
     fetchSuppliers()
-  }, [search])
+  }, [debouncedSearch])
 
   /** Call after add/edit so the list refreshes and shows all suppliers (clears search so new one is visible). */
   const handleSaveSuccess = (): void => {

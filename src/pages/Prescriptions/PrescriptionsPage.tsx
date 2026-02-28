@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { Typography, Button, Empty, Input, Table, Space, Modal, message } from 'antd'
 import { PlusOutlined, EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -6,9 +6,11 @@ import dayjs from 'dayjs'
 import { formatDate } from '@/utils/expiryStatus'
 import type { PrescriptionListRow } from '@/db/queries/prescriptions'
 import { PrescriptionFormModal } from './PrescriptionFormModal'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 export function PrescriptionsPage(): React.ReactElement {
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [rows, setRows] = useState<PrescriptionListRow[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -17,29 +19,37 @@ export function PrescriptionsPage(): React.ReactElement {
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [viewRow, setViewRow] = useState<PrescriptionListRow | null>(null)
+  const abortRef = useRef(false)
 
   const fetchList = (): void => {
+    abortRef.current = false
     setLoading(true)
     window.api
       .invoke<{ data: PrescriptionListRow[]; total: number }>('prescriptions:getAll', {
-        search: search.trim() || null,
+        search: debouncedSearch.trim() || null,
         page,
         pageSize
       })
       .then((res) => {
+        if (abortRef.current) return
         setRows(res?.data ?? [])
         setTotal(res?.total ?? 0)
       })
       .catch(() => {
-        setRows([])
-        setTotal(0)
+        if (!abortRef.current) {
+          setRows([])
+          setTotal(0)
+        }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!abortRef.current) setLoading(false)
+      })
   }
 
   useEffect(() => {
     fetchList()
-  }, [page, pageSize, search])
+    return () => { abortRef.current = true }
+  }, [page, pageSize, debouncedSearch])
 
   const handleAdd = (): void => {
     setEditId(null)

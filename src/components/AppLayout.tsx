@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Layout, Menu, Dropdown, Modal, theme, Badge } from 'antd'
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
+import { Layout, Menu, Dropdown, Modal, theme, Badge, Spin } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   DashboardOutlined,
@@ -291,7 +291,15 @@ export function AppLayout(): React.ReactElement {
             overflow: isPOS ? 'hidden' : undefined
           }}
         >
-          <Outlet />
+          <Suspense
+            fallback={
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 280 }}>
+                <Spin size="large" tip="Loading..." />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </Content>
 
         {!isPOS && (

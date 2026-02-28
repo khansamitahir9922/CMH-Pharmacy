@@ -18,6 +18,7 @@ export function initDatabase(dbPath: string): BetterSQLite3Database<typeof schem
   sqlite.pragma('foreign_keys = ON')
 
   createTables(sqlite)
+  ensureMedicinesIndexes(sqlite)
   migrateMedicinesBarcode(sqlite)
   migratePrescriptionsColumns(sqlite)
   seedDefaults(sqlite)
@@ -221,6 +222,18 @@ function createTables(conn: Database.Database): void {
       details    TEXT,
       created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     );
+  `)
+}
+
+/** Create indexes on medicines and related tables for fast list/search with 10k+ rows. */
+function ensureMedicinesIndexes(conn: Database.Database): void {
+  conn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_medicines_is_deleted ON medicines(is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_medicines_category_id ON medicines(category_id);
+    CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines(name);
+    CREATE INDEX IF NOT EXISTS idx_medicines_expiry_date ON medicines(expiry_date);
+    CREATE INDEX IF NOT EXISTS idx_stock_transactions_medicine_id ON stock_transactions(medicine_id);
+    CREATE INDEX IF NOT EXISTS idx_stock_transactions_created_at ON stock_transactions(created_at);
   `)
 }
 

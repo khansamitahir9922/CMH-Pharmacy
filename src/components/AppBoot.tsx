@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense, lazy } from 'react'
 import { useNavigate, Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
 import { AppGuard } from '@/components/AppGuard'
@@ -8,27 +8,28 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { SetupWizard } from '@/pages/Auth/SetupWizard'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { AppLoadingScreen } from '@/pages/Auth/AppLoadingScreen'
-import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
-import { MedicineListPage } from '@/pages/Medicines/MedicineListPage'
-import { InventoryPage } from '@/pages/Inventory/InventoryPage'
-import { InventoryDashboard } from '@/pages/Inventory/InventoryDashboard'
-import { StockTransactions } from '@/pages/Inventory/StockTransactions'
-import { ExpiryReport } from '@/pages/Inventory/ExpiryReport'
-import { SuppliersPage } from '@/pages/Suppliers/SuppliersPage'
-import { SupplierListPage } from '@/pages/Suppliers/SupplierListPage'
-import { PurchaseOrdersPage } from '@/pages/Suppliers/PurchaseOrdersPage'
-import { BillingPage } from '@/pages/Billing/BillingPage'
-import { POSPage } from '@/pages/Billing/POSPage'
-import { BillHistoryPage } from '@/pages/Billing/BillHistoryPage'
-import { PrescriptionsPage } from '@/pages/Prescriptions/PrescriptionsPage'
-import { ReportsPage } from '@/pages/Reports/ReportsPage'
-import { ReportsLayout } from '@/pages/Reports/ReportsLayout'
-import { SalesReport } from '@/pages/Reports/SalesReport'
-import { StockReport } from '@/pages/Reports/StockReport'
-import { PurchaseReport } from '@/pages/Reports/PurchaseReport'
-import { IssueReport } from '@/pages/Reports/IssueReport'
-import { LowStockReport } from '@/pages/Reports/LowStockReport'
-import { SettingsPage } from '@/pages/Settings/SettingsPage'
+
+const DashboardPage = lazy(() => import('@/pages/Dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const MedicineListPage = lazy(() => import('@/pages/Medicines/MedicineListPage').then((m) => ({ default: m.MedicineListPage })))
+const InventoryPage = lazy(() => import('@/pages/Inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })))
+const InventoryDashboard = lazy(() => import('@/pages/Inventory/InventoryDashboard').then((m) => ({ default: m.InventoryDashboard })))
+const StockTransactions = lazy(() => import('@/pages/Inventory/StockTransactions').then((m) => ({ default: m.StockTransactions })))
+const ExpiryReport = lazy(() => import('@/pages/Inventory/ExpiryReport').then((m) => ({ default: m.ExpiryReport })))
+const SuppliersPage = lazy(() => import('@/pages/Suppliers/SuppliersPage').then((m) => ({ default: m.SuppliersPage })))
+const SupplierListPage = lazy(() => import('@/pages/Suppliers/SupplierListPage').then((m) => ({ default: m.SupplierListPage })))
+const PurchaseOrdersPage = lazy(() => import('@/pages/Suppliers/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage })))
+const BillingPage = lazy(() => import('@/pages/Billing/BillingPage').then((m) => ({ default: m.BillingPage })))
+const POSPage = lazy(() => import('@/pages/Billing/POSPage').then((m) => ({ default: m.POSPage })))
+const BillHistoryPage = lazy(() => import('@/pages/Billing/BillHistoryPage').then((m) => ({ default: m.BillHistoryPage })))
+const PrescriptionsPage = lazy(() => import('@/pages/Prescriptions/PrescriptionsPage').then((m) => ({ default: m.PrescriptionsPage })))
+const ReportsPage = lazy(() => import('@/pages/Reports/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const ReportsLayout = lazy(() => import('@/pages/Reports/ReportsLayout').then((m) => ({ default: m.ReportsLayout })))
+const SalesReport = lazy(() => import('@/pages/Reports/SalesReport').then((m) => ({ default: m.SalesReport })))
+const StockReport = lazy(() => import('@/pages/Reports/StockReport').then((m) => ({ default: m.StockReport })))
+const PurchaseReport = lazy(() => import('@/pages/Reports/PurchaseReport').then((m) => ({ default: m.PurchaseReport })))
+const IssueReport = lazy(() => import('@/pages/Reports/IssueReport').then((m) => ({ default: m.IssueReport })))
+const LowStockReport = lazy(() => import('@/pages/Reports/LowStockReport').then((m) => ({ default: m.LowStockReport })))
+const SettingsPage = lazy(() => import('@/pages/Settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 type BootStatus = 'loading' | 'first-run' | 'ready'
 
