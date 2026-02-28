@@ -33,6 +33,7 @@ export function AppLayout(): React.ReactElement {
   const { currentUser, logout } = useAuthStore()
   const { summary, setSummary } = useAlertStore()
   const { token } = theme.useToken()
+  const isPOS = location.pathname.startsWith('/billing/pos')
 
   useEffect(() => {
     const fetchSummary = (): void => {
@@ -59,7 +60,7 @@ export function AppLayout(): React.ReactElement {
       label: summary.lowStock > 0 ? <Badge count={summary.lowStock} size="small"><span style={menuLabelColor}>Inventory</span></Badge> : 'Inventory'
     },
     { key: '/suppliers', icon: <TeamOutlined />, label: 'Suppliers' },
-    { key: '/billing', icon: <ShoppingCartOutlined />, label: 'Billing' },
+    { key: '/billing/pos', icon: <ShoppingCartOutlined />, label: 'Billing' },
     { key: '/prescriptions', icon: <FileTextOutlined />, label: 'Prescriptions' },
     { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
     { key: '/settings', icon: <SettingOutlined />, label: 'Settings' }
@@ -174,7 +175,13 @@ export function AppLayout(): React.ReactElement {
           theme="dark"
           mode="inline"
           selectedKeys={[
-            location.pathname.startsWith('/inventory') ? '/inventory' : location.pathname.startsWith('/suppliers') ? '/suppliers' : location.pathname
+            location.pathname.startsWith('/inventory')
+              ? '/inventory'
+              : location.pathname.startsWith('/suppliers')
+                ? '/suppliers'
+                : location.pathname.startsWith('/billing')
+                  ? '/billing/pos'
+                  : location.pathname
           ]}
           items={siderMenuItems}
           onClick={({ key }) => navigate(key)}
@@ -265,19 +272,23 @@ export function AppLayout(): React.ReactElement {
 
         <Content
           style={{
-            margin: 24,
-            padding: 24,
+            margin: isPOS ? 12 : 24,
+            padding: isPOS ? 12 : 24,
             background: token.colorBgContainer,
             borderRadius: token.borderRadiusLG,
-            minHeight: 360
+            minHeight: isPOS ? 0 : 360,
+            height: isPOS ? 'calc(100vh - 64px - 24px)' : undefined,
+            overflow: isPOS ? 'hidden' : undefined
           }}
         >
           <Outlet />
         </Content>
 
-        <Footer style={{ textAlign: 'center', color: token.colorTextSecondary }}>
-          SKBZ/CMH RAWALAKOT PHARMACY v1.0
-        </Footer>
+        {!isPOS && (
+          <Footer style={{ textAlign: 'center', color: token.colorTextSecondary }}>
+            SKBZ/CMH RAWALAKOT PHARMACY v1.0
+          </Footer>
+        )}
       </Layout>
     </Layout>
   )

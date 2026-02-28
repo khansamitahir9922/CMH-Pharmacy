@@ -1,17 +1,20 @@
 import { ipcMain } from 'electron'
+import { getAll, get, update } from '../../src/db/queries/settings'
 
 /** Register settings module IPC handlers */
 export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:getAll', async () => {
-    // TODO: Fetch all settings as key-value pairs
+    return getAll()
   })
 
-  ipcMain.handle('settings:get', async (_event, _key: unknown) => {
-    // TODO: Fetch a single setting by key
+  ipcMain.handle('settings:get', async (_event, key: string) => {
+    return get(String(key ?? ''))
   })
 
-  ipcMain.handle('settings:update', async (_event, _data: unknown) => {
-    // TODO: Update a setting value
+  ipcMain.handle('settings:update', async (_event, data: { key: string; value: string | null }) => {
+    if (!data?.key?.trim()) throw new Error('Setting key is required.')
+    update(data.key, data.value ?? null)
+    return { success: true }
   })
 
   ipcMain.handle('settings:getUsers', async () => {

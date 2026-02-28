@@ -1,8 +1,6 @@
 import React from 'react'
-import { Typography } from 'antd'
-
-const { Title } = Typography
+import { Navigate } from 'react-router-dom'
 
 export function BillingPage(): React.ReactElement {
-  return <Title level={2}>Billing</Title>
+  return <Navigate to="/billing/pos" replace />
 }

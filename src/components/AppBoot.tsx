@@ -17,6 +17,8 @@ import { SuppliersPage } from '@/pages/Suppliers/SuppliersPage'
 import { SupplierListPage } from '@/pages/Suppliers/SupplierListPage'
 import { PurchaseOrdersPage } from '@/pages/Suppliers/PurchaseOrdersPage'
 import { BillingPage } from '@/pages/Billing/BillingPage'
+import { POSPage } from '@/pages/Billing/POSPage'
+import { BillHistoryPage } from '@/pages/Billing/BillHistoryPage'
 import { PrescriptionsPage } from '@/pages/Prescriptions/PrescriptionsPage'
 import { ReportsPage } from '@/pages/Reports/ReportsPage'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
@@ -95,6 +97,8 @@ export function AppBoot(): React.ReactElement {
           <Route path="orders" element={<PurchaseOrdersPage />} />
         </Route>
         <Route path="billing" element={<BillingPage />} />
+        <Route path="billing/pos" element={<POSPage />} />
+        <Route path="billing/history" element={<BillHistoryPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />

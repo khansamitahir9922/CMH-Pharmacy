@@ -8,6 +8,7 @@ export interface MedicineRow {
   name: string
   category_id: number | null
   batch_no: string | null
+  barcode: string | null
   mfg_date: string | null
   expiry_date: string | null
   received_date: string | null
@@ -167,6 +168,7 @@ export function getById(id: number): MedicineWithStock | null {
       name: medicines.name,
       category_id: medicines.category_id,
       batch_no: medicines.batch_no,
+      barcode: medicines.barcode,
       mfg_date: medicines.mfg_date,
       expiry_date: medicines.expiry_date,
       received_date: medicines.received_date,
@@ -204,6 +206,7 @@ export interface CreateMedicineInput {
   name: string
   category_id: number | null
   batch_no: string
+  barcode: string | null
   mfg_date: string
   expiry_date: string
   received_date: string
@@ -229,6 +232,7 @@ export function create(input: CreateMedicineInput): { id: number } {
       name: input.name,
       category_id: input.category_id,
       batch_no: input.batch_no,
+      barcode: input.barcode ?? null,
       mfg_date: input.mfg_date,
       expiry_date: input.expiry_date,
       received_date: input.received_date,
@@ -299,51 +303,87 @@ export function getCategories(): { id: number; name: string }[] {
   return db.select({ id: medicineCategories.id, name: medicineCategories.name }).from(medicineCategories).all()
 }
 
+const searchSelect = {
+  id: medicines.id,
+  name: medicines.name,
+  category_id: medicines.category_id,
+  batch_no: medicines.batch_no,
+  barcode: medicines.barcode,
+  mfg_date: medicines.mfg_date,
+  expiry_date: medicines.expiry_date,
+  received_date: medicines.received_date,
+  order_date: medicines.order_date,
+  firm_name: medicines.firm_name,
+  opening_stock: medicines.opening_stock,
+  unit_price_buy: medicines.unit_price_buy,
+  unit_price_sell: medicines.unit_price_sell,
+  min_stock_level: medicines.min_stock_level,
+  shelf_location: medicines.shelf_location,
+  notes: medicines.notes,
+  is_deleted: medicines.is_deleted,
+  created_at: medicines.created_at,
+  updated_at: medicines.updated_at,
+  category_name: medicineCategories.name,
+  current_quantity: stock.current_quantity
+}
+
+function mapSearchRow(r: Record<string, unknown>): MedicineWithStock {
+  const row = r as unknown as { is_deleted?: boolean; [k: string]: unknown }
+  return {
+    ...r,
+    is_deleted: row.is_deleted ? 1 : 0,
+    current_quantity: (r.current_quantity as number) ?? 0,
+    category_name: (r.category_name as string | null) ?? null
+  } as MedicineWithStock
+}
+
 /**
- * Search medicines by name or batch (top 10) for POS autocomplete.
+ * Search medicines by name, batch, or barcode for POS (and barcode scan).
+ * - Exact barcode or batch match (when term length >= 5) returns that single match.
+ * - Otherwise fuzzy search on name, batch_no, barcode (top 10).
  */
 export function search(term: string): MedicineWithStock[] {
-  if (!String(term).trim()) return []
+  const trimmed = String(term).trim()
+  if (!trimmed) return []
   const db = getDb()
-  const searchTerm = `%${String(term).trim()}%`
+
+  // Barcode / batch exact match: when user scans or types a full code (e.g. 8+ chars)
+  if (trimmed.length >= 5) {
+    const exactRows = db
+      .select(searchSelect)
+      .from(medicines)
+      .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
+      .leftJoin(stock, eq(medicines.id, stock.medicine_id))
+      .where(
+        and(
+          eq(medicines.is_deleted, false),
+          or(eq(medicines.barcode, trimmed), eq(medicines.batch_no, trimmed))!
+        )
+      )
+      .limit(2)
+      .all()
+    if (exactRows.length === 1) return exactRows.map((r) => mapSearchRow(r as Record<string, unknown>))
+  }
+
+  const searchTerm = `%${trimmed}%`
   const rows = db
-    .select({
-      id: medicines.id,
-      name: medicines.name,
-      category_id: medicines.category_id,
-      batch_no: medicines.batch_no,
-      mfg_date: medicines.mfg_date,
-      expiry_date: medicines.expiry_date,
-      received_date: medicines.received_date,
-      order_date: medicines.order_date,
-      firm_name: medicines.firm_name,
-      opening_stock: medicines.opening_stock,
-      unit_price_buy: medicines.unit_price_buy,
-      unit_price_sell: medicines.unit_price_sell,
-      min_stock_level: medicines.min_stock_level,
-      shelf_location: medicines.shelf_location,
-      notes: medicines.notes,
-      is_deleted: medicines.is_deleted,
-      created_at: medicines.created_at,
-      updated_at: medicines.updated_at,
-      category_name: medicineCategories.name,
-      current_quantity: stock.current_quantity
-    })
+    .select(searchSelect)
     .from(medicines)
     .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
     .leftJoin(stock, eq(medicines.id, stock.medicine_id))
-    .where(and(eq(medicines.is_deleted, false), or(like(medicines.name, searchTerm), like(medicines.batch_no, searchTerm))))
+    .where(
+      and(
+        eq(medicines.is_deleted, false),
+        or(
+          like(medicines.name, searchTerm),
+          like(medicines.batch_no, searchTerm),
+          like(medicines.barcode, searchTerm)
+        )!
+      )
+    )
     .limit(10)
     .all()
-  return rows.map((r) => {
-    const row = r as unknown as { is_deleted?: boolean; [k: string]: unknown }
-    return {
-      ...r,
-      is_deleted: row.is_deleted ? 1 : 0,
-      current_quantity: r.current_quantity ?? 0,
-      category_name: r.category_name ?? null
-    }
-  }) as MedicineWithStock[]
+  return rows.map((r) => mapSearchRow(r as Record<string, unknown>))
 }
 
 /**

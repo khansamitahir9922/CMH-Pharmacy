@@ -10,6 +10,8 @@ export interface MedicineFormModalProps {
   open: boolean
   editId: number | null
   categories: { id: number; name: string }[]
+  /** When adding a new medicine, pre-fill the barcode field (e.g. from list page scan). */
+  initialBarcode?: string | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -18,6 +20,7 @@ interface FormValues {
   name: string
   category_id: number | null
   batch_no: string
+  barcode: string
   firm_name: string
   shelf_location?: string
   mfg_date: Dayjs | null
@@ -35,6 +38,7 @@ export function MedicineFormModal({
   open,
   editId,
   categories,
+  initialBarcode,
   onClose,
   onSuccess
 }: MedicineFormModalProps): React.ReactElement {
@@ -60,6 +64,7 @@ export function MedicineFormModal({
               name: medicine.name,
               category_id: medicine.category_id ?? null,
               batch_no: medicine.batch_no ?? '',
+              barcode: (medicine as { barcode?: string | null }).barcode ?? '',
               firm_name: medicine.firm_name ?? '',
               shelf_location: medicine.shelf_location ?? undefined,
               mfg_date: medicine.mfg_date ? dayjs(medicine.mfg_date) : null,
@@ -80,10 +85,11 @@ export function MedicineFormModal({
         opening_stock: 0,
         min_stock_level: 1,
         buy_price_rs: undefined,
-        sell_price_rs: undefined
+        sell_price_rs: undefined,
+        ...(initialBarcode != null && initialBarcode !== '' ? { barcode: initialBarcode.trim() } : {})
       })
     }
-  }, [open, editId, isEdit, form])
+  }, [open, editId, isEdit, initialBarcode, form])
 
   const handleFinish = async (values: FormValues): Promise<void> => {
     const mfgDate = values.mfg_date?.format('YYYY-MM-DD') ?? ''
@@ -111,6 +117,7 @@ export function MedicineFormModal({
           name: values.name.trim(),
           category_id: values.category_id,
           batch_no: values.batch_no.trim(),
+          barcode: values.barcode?.trim() || null,
           firm_name: values.firm_name.trim(),
           shelf_location: values.shelf_location?.trim() ?? null,
           mfg_date: mfgDate,
@@ -128,6 +135,7 @@ export function MedicineFormModal({
           name: values.name.trim(),
           category_id: values.category_id,
           batch_no: values.batch_no.trim(),
+          barcode: values.barcode?.trim() || null,
           firm_name: values.firm_name.trim(),
           shelf_location: values.shelf_location?.trim() ?? null,
           mfg_date: mfgDate,
@@ -203,6 +211,18 @@ export function MedicineFormModal({
                 rules={[{ required: true, message: 'Please enter batch number.' }]}
               >
                 <Input placeholder="Batch number" />
+              </Form.Item>
+              <Form.Item
+                name="barcode"
+                label="Barcode"
+                help="Scan or type here. Same barcode is used at POS to add this medicine to a bill."
+              >
+                <Input
+                  placeholder="Scan or type barcode (optional)"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.preventDefault()
+                  }}
+                />
               </Form.Item>
               <Form.Item
                 name="firm_name"

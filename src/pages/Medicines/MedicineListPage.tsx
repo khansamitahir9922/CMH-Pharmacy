@@ -11,7 +11,7 @@ import {
   Modal,
   message
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, BarcodeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import * as XLSX from 'xlsx'
 import { useMedicines, type MedicineWithStock, type MedicineFilters } from '@/hooks/useMedicines'
@@ -43,6 +43,8 @@ export function MedicineListPage(): React.ReactElement {
   const [sortOrder, setSortOrder] = useState<MedicineFilters['sortOrder']>('asc')
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
+  const [addWithBarcode, setAddWithBarcode] = useState<string | null>(null)
+  const [barcodeScanInput, setBarcodeScanInput] = useState('')
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
 
   const filters: MedicineFilters = {
@@ -244,6 +246,25 @@ export function MedicineListPage(): React.ReactElement {
           allowClear
           style={{ width: 220 }}
         />
+        <Input
+          placeholder="Scan barcode to add new medicine"
+          prefix={<BarcodeOutlined style={{ color: '#6B7280' }} />}
+          style={{ width: 260 }}
+          value={barcodeScanInput}
+          onChange={(e) => setBarcodeScanInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const value = barcodeScanInput.trim()
+              if (value) {
+                setAddWithBarcode(value)
+                setModalOpen(true)
+                setEditId(null)
+                setBarcodeScanInput('')
+              }
+            }
+          }}
+          allowClear
+        />
         <Select
           placeholder="Category"
           value={categoryId === null ? 'all' : categoryId}
@@ -315,7 +336,8 @@ export function MedicineListPage(): React.ReactElement {
         open={modalOpen}
         editId={editId}
         categories={categories}
-        onClose={() => { setModalOpen(false); setEditId(null) }}
+        initialBarcode={addWithBarcode}
+        onClose={() => { setModalOpen(false); setEditId(null); setAddWithBarcode(null) }}
         onSuccess={refetch}
       />
     </div>

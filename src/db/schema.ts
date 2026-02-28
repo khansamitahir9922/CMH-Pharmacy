@@ -30,6 +30,7 @@ export const medicines = sqliteTable('medicines', {
   name: text('name').notNull(),
   category_id: integer('category_id').references(() => medicineCategories.id),
   batch_no: text('batch_no'),
+  barcode: text('barcode'),
   mfg_date: text('mfg_date'),
   expiry_date: text('expiry_date'),
   received_date: text('received_date'),

@@ -16,6 +16,7 @@ export function initDatabase(dbPath: string): BetterSQLite3Database<typeof schem
   sqlite.pragma('foreign_keys = ON')
 
   createTables(sqlite)
+  migrateMedicinesBarcode(sqlite)
   seedDefaults(sqlite)
 
   db = drizzle(sqlite, { schema })
@@ -59,6 +60,7 @@ function createTables(conn: Database.Database): void {
       name            TEXT    NOT NULL,
       category_id     INTEGER REFERENCES medicine_categories(id),
       batch_no        TEXT,
+      barcode         TEXT,
       mfg_date        TEXT,
       expiry_date     TEXT,
       received_date   TEXT,
@@ -199,6 +201,13 @@ function createTables(conn: Database.Database): void {
       created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     );
   `)
+}
+
+/** Add barcode column to medicines if missing (for existing DBs). */
+function migrateMedicinesBarcode(conn: Database.Database): void {
+  const rows = conn.prepare("PRAGMA table_info(medicines)").all() as Array<{ name: string }>
+  if (rows.some((r) => r.name === 'barcode')) return
+  conn.exec('ALTER TABLE medicines ADD COLUMN barcode TEXT')
 }
 
 function seedDefaults(conn: Database.Database): void {
