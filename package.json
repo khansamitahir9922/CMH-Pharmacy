@@ -1,0 +1,48 @@
+{
+  "name": "skbz-cmh-rawalakot-pharmacy",
+  "version": "1.0.0",
+  "description": "SKBZ/CMH RAWALAKOT PHARMACY — Medical Store Management System",
+  "main": "./out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder",
+    "rebuild": "electron-rebuild"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "antd": "^5.22.0",
+    "@ant-design/icons": "^5.5.0",
+    "better-sqlite3": "^11.6.0",
+    "drizzle-orm": "^0.36.0",
+    "zustand": "^5.0.0",
+    "dayjs": "^1.11.13",
+    "bcryptjs": "^2.4.3",
+    "recharts": "^2.14.0",
+    "xlsx": "^0.18.5",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "archiver": "^7.0.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-vite": "^2.3.0",
+    "electron-builder": "^25.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/node": "^22.10.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/archiver": "^6.0.3",
+    "drizzle-kit": "^0.28.0",
+    "electron-rebuild": "^3.2.9"
+  },
+  "engines": {
+    "node": ">=20.0.0 <23.0.0"
+  }
+}

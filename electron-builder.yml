@@ -1,0 +1,18 @@
+appId: com.skbz.cmh.rawalakot.pharmacy
+productName: SKBZ/CMH RAWALAKOT PHARMACY
+directories:
+  buildResources: build
+  output: dist-installer
+files:
+  - out/**/*
+  - package.json
+win:
+  target: nsis
+  icon: public/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SKBZ/CMH RAWALAKOT PHARMACY
