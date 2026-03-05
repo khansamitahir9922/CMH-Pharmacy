@@ -5,7 +5,8 @@ import { MedicineBoxOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 
 const { Title, Text } = Typography
-const LOGO_PATH = '/logo.png'
+const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'
+const LOGO_PATH = `${BASE}logo.png`
 const PHARMACY_NAME = 'SKBZ/CMH RAWALAKOT PHARMACY'
 const LOAD_DURATION_MS = 2200
 

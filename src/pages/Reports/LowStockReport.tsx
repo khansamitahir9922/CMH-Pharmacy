@@ -3,11 +3,13 @@ import { Typography, Table, Button, Skeleton } from 'antd'
 import { FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/store/authStore'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 interface LowStockRow {
   id: number
   name: string
+  generic_name?: string | null
   category_name: string | null
   batch_no: string | null
   expiry_date: string | null
@@ -15,10 +17,17 @@ interface LowStockRow {
   min_stock_level: number
 }
 
+const REPORT_NAME = 'Low Stock Report'
+
 export function LowStockReport(): React.ReactElement {
   const navigate = useNavigate()
+  const { currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<LowStockRow[]>([])
+
+  useEffect(() => {
+    window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
+  }, [])
 
   const fetchReport = (): void => {
     setLoading(true)
@@ -34,7 +43,11 @@ export function LowStockReport(): React.ReactElement {
   }, [])
 
   const columns: ColumnsType<LowStockRow> = [
-    { title: 'Medicine', dataIndex: 'name', key: 'name' },
+    {
+      title: 'Medicine',
+      key: 'name',
+      render: (_: unknown, r: LowStockRow) => (r.generic_name ? `${r.name} (${r.generic_name})` : r.name)
+    },
     { title: 'Category', dataIndex: 'category_name', key: 'category_name', render: (v) => v ?? '—' },
     { title: 'Batch', dataIndex: 'batch_no', key: 'batch_no', render: (v) => v ?? '—' },
     { title: 'Expiry', dataIndex: 'expiry_date', key: 'expiry_date', width: 110, render: (v) => (v ? String(v).slice(0, 10) : '—') },
@@ -60,7 +73,7 @@ export function LowStockReport(): React.ReactElement {
 
   const handleExportPdf = (): void => {
     const data = rows.map((r) => ({
-      Medicine: r.name,
+      Medicine: r.generic_name ? `${r.name} (${r.generic_name})` : r.name,
       Category: r.category_name ?? '',
       Batch: r.batch_no ?? '',
       Expiry: r.expiry_date ?? '',

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Typography, Tabs, Table, Button, Skeleton } from 'antd'
 import { PrinterOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import { useAuthStore } from '@/store/authStore'
 import { formatDate, getExpiryColor } from '@/utils/expiryStatus'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
@@ -31,10 +32,17 @@ const TAB_LABELS: Record<(typeof TAB_KEYS)[number], string> = {
   ok: 'All OK'
 }
 
+const REPORT_NAME = 'Expiry Report'
+
 export function ExpiryReport(): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<ExpiryReportData | null>(null)
   const [activeTab, setActiveTab] = useState<string>('expired')
+
+  useEffect(() => {
+    window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
+  }, [])
 
   const fetchReport = (): void => {
     setLoading(true)
@@ -57,7 +65,7 @@ export function ExpiryReport(): React.ReactElement {
       list.forEach((r) => {
         rows.push({
           Status: TAB_LABELS[key],
-          'Medicine Name': r.name,
+          'Medicine Name': r.generic_name ? `${r.name} (${r.generic_name})` : r.name,
           Category: r.category_name ?? '',
           'Batch No': r.batch_no ?? '',
           'Expiry Date': formatDate(r.expiry_date),
@@ -88,7 +96,11 @@ export function ExpiryReport(): React.ReactElement {
   }
 
   const columns: ColumnsType<ExpiryReportRow> = [
-    { title: 'Medicine Name', dataIndex: 'name', key: 'name' },
+    {
+      title: 'Medicine Name',
+      key: 'name',
+      render: (_: unknown, r: ExpiryReportRow) => (r.generic_name ? `${r.name} (${r.generic_name})` : r.name)
+    },
     { title: 'Category', dataIndex: 'category_name', key: 'category_name', render: (v) => v ?? '—' },
     { title: 'Batch No', dataIndex: 'batch_no', key: 'batch_no', render: (v) => v ?? '—' },
     {

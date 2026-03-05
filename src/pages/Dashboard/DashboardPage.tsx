@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Typography, Card, Row, Col, Table, Spin, Button, Skeleton } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { ReloadOutlined, ShoppingCartOutlined, PlusOutlined, InboxOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -164,15 +164,38 @@ export function DashboardPage(): React.ReactElement {
           </Typography.Title>
           <Typography.Text type="secondary">{dayjs().format('dddd, MMMM D, YYYY')}</Typography.Text>
         </div>
-        <Button
-          type="default"
-          icon={<ReloadOutlined spin={refreshing} />}
-          onClick={handleRefresh}
-          loading={refreshing}
-          title="Refresh dashboard"
-        >
-          Refresh
-        </Button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <Button
+            type="primary"
+            icon={<ShoppingCartOutlined />}
+            onClick={() => navigate('/billing/pos')}
+          >
+            New Bill
+          </Button>
+          <Button
+            type="default"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/medicines')}
+          >
+            Add Medicine
+          </Button>
+          <Button
+            type="default"
+            icon={<InboxOutlined />}
+            onClick={() => navigate('/inventory')}
+          >
+            Stock In / Out
+          </Button>
+          <Button
+            type="default"
+            icon={<ReloadOutlined spin={refreshing} />}
+            onClick={handleRefresh}
+            loading={refreshing}
+            title="Refresh dashboard"
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {loading ? (

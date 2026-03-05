@@ -6,7 +6,9 @@ import { useAuthStore } from '@/store/authStore'
 
 const { Title, Text } = Typography
 
-const LOGO_PATH = '/logo.png'
+const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'
+const LOGO_PATH = `${BASE}logo.png`
+const HOSPITAL_IMAGE = `${BASE}hospital.jpg`
 
 export function LoginPage(): React.ReactElement {
   const [loading, setLoading] = useState(false)
@@ -102,7 +104,7 @@ export function LoginPage(): React.ReactElement {
           justifyContent: 'center',
           padding: 32,
           backgroundImage:
-            'linear-gradient(135deg, rgba(26,86,219,0.88) 0%, rgba(15,59,149,0.9) 35%, rgba(236,72,153,0.85) 70%, rgba(249,115,22,0.9) 100%), url(/hospital.jpg)',
+            `linear-gradient(135deg, rgba(26,86,219,0.88) 0%, rgba(15,59,149,0.9) 35%, rgba(236,72,153,0.85) 70%, rgba(249,115,22,0.9) 100%), url(${HOSPITAL_IMAGE})`,
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
@@ -214,6 +216,7 @@ export function LoginPage(): React.ReactElement {
                 placeholder="Enter your username"
                 size="large"
                 autoComplete="username"
+                autoFocus
               />
             </Form.Item>
 
@@ -241,6 +244,9 @@ export function LoginPage(): React.ReactElement {
               >
                 Sign In
               </Button>
+              <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                Press Enter to sign in
+              </Text>
             </Form.Item>
           </Form>
 

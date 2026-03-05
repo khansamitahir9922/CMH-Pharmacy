@@ -16,6 +16,7 @@ export function RecordPaymentModal({ orderId, onClose, onSuccess }: RecordPaymen
   const [saving, setSaving] = useState(false)
   const [order, setOrder] = useState<{
     order_number: string
+    supply_order_number?: string
     supplier_name: string | null
     total_amount: number
     paid_amount: number
@@ -23,7 +24,7 @@ export function RecordPaymentModal({ orderId, onClose, onSuccess }: RecordPaymen
 
   useEffect(() => {
     window.api
-      .invoke<{ order: { order_number: string; supplier_name: string | null; total_amount: number; paid_amount: number }; items: unknown[] } | null>('suppliers:getPurchaseOrderById', orderId)
+      .invoke<{ order: { order_number: string; supply_order_number?: string; supplier_name: string | null; total_amount: number; paid_amount: number }; items: unknown[] } | null>('suppliers:getPurchaseOrderById', orderId)
       .then((data) => {
         if (data?.order) setOrder(data.order)
         setLoading(false)
@@ -82,7 +83,7 @@ export function RecordPaymentModal({ orderId, onClose, onSuccess }: RecordPaymen
       destroyOnClose
     >
       <p><strong>Supplier:</strong> {order.supplier_name ?? '—'}</p>
-      <p><strong>Order#:</strong> {order.order_number}</p>
+      <p><strong>Supply Order#:</strong> {order.supply_order_number ?? order.order_number}</p>
       <p><strong>Total:</strong> {formatCurrency(order.total_amount)} &nbsp; <strong>Paid:</strong> {formatCurrency(order.paid_amount)}</p>
       <p><strong>Remaining:</strong> {formatCurrency(remaining)}</p>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>

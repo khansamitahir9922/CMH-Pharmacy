@@ -1,0 +1,92 @@
+================================================================================
+  PHARMACY APP - PREVIEW BUILD - HOW TO INSTALL AND RUN
+  (Send this to your customer with the installer file)
+================================================================================
+
+WHAT YOU RECEIVED
+  An installer for the Medical Store Management System (pharmacy app) so you can
+  try it on your computer and confirm it works before the final version.
+
+REQUIREMENTS
+  - Windows 10 or 11 (64-bit)
+  - No internet needed for normal use (data is stored on your PC)
+
+--------------------------------------------------------------------------------
+INSTALLATION
+--------------------------------------------------------------------------------
+1. Find the file we sent you:
+   "Medical Store Management System Setup 1.0.0.exe"
+   (If we sent a zip file, unzip it first and find this .exe inside.)
+
+2. Double-click the file to start the installer.
+
+3. If Windows BLOCKS the app (Smart App Control / "Windows protected your PC"):
+   - If you see "More info" and "Run anyway": click More info, then Run anyway.
+   - If you only see "OK", "Send feedback", "Get app from store" (no Run anyway):
+     You must allow the app first. See the section below: "IF WINDOWS BLOCKS THE INSTALLER (Smart App Control)".
+
+4. Follow the installer: choose folder (default is fine), click Next, then Finish.
+
+5. When done, close the installer.
+
+--------------------------------------------------------------------------------
+FIRST RUN
+--------------------------------------------------------------------------------
+1. Open the app from the desktop shortcut ("MSMS") or from the Start menu.
+
+2. First time you will see a SETUP screen. Create the first (admin) account:
+   - Username (e.g. admin)
+   - Password (choose a strong one)
+   - Full name (e.g. your name)
+   Then click Create account.
+
+3. You will be taken to the LOGIN screen. Log in with the same username and password.
+
+4. The app opens to the main screen (Dashboard). You can now:
+   - Add medicines (Medicines)
+   - Do a sample sale (Billing)
+   - Check stock (Inventory) and Reports
+
+--------------------------------------------------------------------------------
+WHAT WE NEED FROM YOU
+--------------------------------------------------------------------------------
+- Use the app and try the main features (medicines, billing, inventory, reports).
+- If something does not work or you see an error, note what you did and what
+  happened (or send a screenshot) and tell us.
+- When you are satisfied, reply with: "It's OK, you can test it further before
+  giving the final version."
+
+--------------------------------------------------------------------------------
+IF WINDOWS BLOCKS THE INSTALLER (Smart App Control - only OK / Send feedback)
+--------------------------------------------------------------------------------
+Do ONE of the following, then run the installer again.
+
+OPTION A - Add an exclusion (recommended)
+  1. Press Windows key, type "Windows Security", open it.
+  2. Go to: Virus & threat protection → Manage settings (or "Virus & threat protection settings").
+  3. Scroll to "Exclusions" → Add or remove exclusions → Add an exclusion → Folder.
+  4. Select the folder where the installer is (e.g. Downloads, or Desktop, or the folder you put the .exe in). Click "Select Folder".
+  5. Close Windows Security. Double-click the installer again.
+
+OPTION B - Temporarily turn off Smart App Control
+  1. Press Windows key, type "Windows Security", open it.
+  2. Go to: App & browser control → Smart App Control settings (or "Reputation-based protection settings").
+  3. If you see "Smart App Control", turn it Off (or set to "Warn" if available). Confirm.
+  4. Run the installer. After installation, you can turn Smart App Control back On if you want.
+
+OPTION C - Run from Command Prompt (sometimes bypasses the block)
+  1. Press Windows key, type "cmd", right-click Command Prompt → Run as administrator.
+  2. Type: cd /d "C:\Users\YourName\Downloads"
+     (Replace YourName with your Windows user name, and use the real folder where the .exe is.)
+  3. Type: "Medical Store Management System Setup 1.0.0.exe"
+  4. Press Enter. If it still blocks, use Option A or B.
+
+--------------------------------------------------------------------------------
+UNINSTALL (if needed)
+--------------------------------------------------------------------------------
+  Windows: Settings → Apps → Installed apps → find "Medical Store Management
+  System" (or "MSMS") → Uninstall.
+
+--------------------------------------------------------------------------------
+For questions or issues, contact: [Your contact details here]
+================================================================================

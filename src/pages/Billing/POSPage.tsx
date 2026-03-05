@@ -14,6 +14,7 @@ type PaymentMode = 'cash' | 'card' | 'credit'
 interface MedicineSearchRow {
   id: number
   name: string
+  generic_name?: string | null
   batch_no: string | null
   current_quantity: number
   unit_price_sell: number
@@ -22,6 +23,7 @@ interface MedicineSearchRow {
 interface BillLineItem {
   medicineId: number
   name: string
+  genericName?: string | null
   batchNo: string | null
   stock: number
   qty: number
@@ -127,6 +129,7 @@ export function POSPage(): React.ReactElement {
           const list = (res ?? []).map((r) => ({
             id: r.id,
             name: r.name,
+            generic_name: r.generic_name ?? null,
             batch_no: r.batch_no ?? null,
             current_quantity: r.current_quantity ?? 0,
             unit_price_sell: r.unit_price_sell ?? 0
@@ -156,6 +159,7 @@ export function POSPage(): React.ReactElement {
         {
           medicineId: m.id,
           name: m.name,
+          genericName: m.generic_name ?? null,
           batchNo: m.batch_no ?? null,
           stock: m.current_quantity ?? 0,
           qty: 1,
@@ -196,7 +200,7 @@ export function POSPage(): React.ReactElement {
       notification.warning({ message: 'No items', description: 'Search for medicines above to add them to this bill.' })
       return
     }
-    if (paymentMode === 'cash' && amountReceived < total) {
+    if (paymentMode === 'cash' && total > 0 && amountReceived < total) {
       notification.error({ message: 'Cash received is insufficient', description: 'Amount received must be greater than or equal to total.' })
       return
     }
@@ -240,7 +244,7 @@ export function POSPage(): React.ReactElement {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600, color: '#111827' }}>{r.name}</div>
           <div style={{ fontSize: 12, color: '#6B7280' }}>
-            Batch: {r.batchNo ?? '—'} | Stock: {r.stock}
+            {r.genericName ? `Formula: ${r.genericName} · ` : ''}Batch: {r.batchNo ?? '—'} | Stock: {r.stock}
           </div>
         </div>
       )
@@ -260,8 +264,8 @@ export function POSPage(): React.ReactElement {
         />
       )
     },
-    { title: 'Unit Price', key: 'unitPrice', width: 110, render: (_, r) => formatCurrency(r.unitPrice) },
-    { title: 'Total', key: 'total', width: 110, render: (_, r) => formatCurrency(r.qty * r.unitPrice) },
+    { title: 'Unit Price', key: 'unitPrice', width: 110, render: (_, r) => (r.unitPrice > 0 ? formatCurrency(r.unitPrice) : '—') },
+    { title: 'Total', key: 'total', width: 110, render: (_, r) => (r.unitPrice > 0 ? formatCurrency(r.qty * r.unitPrice) : '—') },
     {
       title: '',
       key: 'remove',
@@ -288,7 +292,7 @@ export function POSPage(): React.ReactElement {
               {m.name}
             </div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>
-              Batch: {m.batch_no ?? '—'} | Stock: {m.current_quantity ?? 0}
+              {m.generic_name ? `Formula: ${m.generic_name} · ` : ''}Batch: {m.batch_no ?? '—'} | Stock: {m.current_quantity ?? 0}
             </div>
           </div>
           <div style={{ fontWeight: 700, color: '#1A56DB', whiteSpace: 'nowrap' }}>
@@ -315,11 +319,18 @@ export function POSPage(): React.ReactElement {
           options={options}
           value={searchText}
           open={dropdownOpen}
-          onDropdownVisibleChange={(v) => setDropdownOpen(v)}
+          onDropdownVisibleChange={(v) => {
+            if (v === false) setDropdownOpen(false)
+          }}
           onSelect={(value) => {
             const id = toInt(value)
             const m = searchResults.find((r) => r.id === id)
-            if (m) handleAddMedicine(m)
+            if (m) {
+              setDropdownOpen(false)
+              setSearchText('')
+              setSearchResults([])
+              handleAddMedicine(m)
+            }
           }}
           onChange={(v) => {
             const next = String(v ?? '')
@@ -335,7 +346,7 @@ export function POSPage(): React.ReactElement {
           <Input
             ref={searchInputRef}
             size="large"
-            placeholder="Search medicine by name or scan barcode..."
+            placeholder="Search by medicine name, formula (generic) name, or scan barcode..."
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setDropdownOpen(false)
@@ -355,6 +366,7 @@ export function POSPage(): React.ReactElement {
                     const list = (res ?? []).map((r) => ({
                       id: r.id,
                       name: r.name,
+                      generic_name: r.generic_name ?? null,
                       batch_no: r.batch_no ?? null,
                       current_quantity: r.current_quantity ?? 0,
                       unit_price_sell: r.unit_price_sell ?? 0
@@ -371,6 +383,9 @@ export function POSPage(): React.ReactElement {
             }}
           />
         </AutoComplete>
+        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+          Type or scan to add items • F2 Clear • F8 Complete bill • ? Shortcuts
+        </Typography.Text>
 
         <Divider style={{ margin: '12px 0' }} />
 

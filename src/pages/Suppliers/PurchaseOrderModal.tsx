@@ -103,7 +103,8 @@ export function PurchaseOrderModal({ open, onClose, onSuccess }: PurchaseOrderMo
   const handleAddLine = (): void => {
     if (!selectedMedicineId || qty < 1) return
     const med = medicineOptions.find((m) => m.id === selectedMedicineId)
-    const name = med ? med.name + (med.batch_no ? ` (${med.batch_no})` : '') : 'Medicine'
+    const generic = med ? (med as { generic_name?: string | null }).generic_name : null
+    const name = med ? `${med.name}${generic ? ` (${generic})` : ''}${med.batch_no ? ` · ${med.batch_no}` : ''}` : 'Medicine'
     const pricePaisa = unitPrice >= 0 ? Math.round(unitPrice * 100) : (med?.unit_price_buy ?? 0)
     const total = qty * pricePaisa
     if (lineItems.some((i) => i.medicine_id === selectedMedicineId)) {
@@ -136,7 +137,8 @@ export function PurchaseOrderModal({ open, onClose, onSuccess }: PurchaseOrderMo
     }
     setSaving(true)
     try {
-      await window.api.invoke<{ id: number; order_number: string }>('suppliers:createPurchaseOrder', {
+      await window.api.invoke<{ id: number; order_number: string; supply_order_number: string }>('suppliers:createPurchaseOrder', {
+        supply_order_number: String(values.supply_order_number ?? '').trim(),
         supplier_id: values.supplier_id,
         order_date: orderDateStr,
         expected_date: values.expected_date && typeof values.expected_date.format === 'function' ? values.expected_date.format('YYYY-MM-DD') : null,
@@ -172,6 +174,13 @@ export function PurchaseOrderModal({ open, onClose, onSuccess }: PurchaseOrderMo
       maskClosable={!saving}
     >
       <Form form={form} layout="vertical" initialValues={{ order_date: dayjs() }}>
+        <Form.Item
+          name="supply_order_number"
+          label="Supply Order Number"
+          rules={[{ required: true, message: 'Enter supply order number.' }, { whitespace: true, message: 'Supply order number cannot be blank.' }]}
+        >
+          <Input placeholder="e.g. PO-2026-001 or your unique reference" maxLength={64} />
+        </Form.Item>
         <Form.Item name="supplier_id" label="Supplier" rules={[{ required: true, message: 'Select supplier.' }]}>
           <Select
             placeholder="Select supplier"
@@ -193,7 +202,7 @@ export function PurchaseOrderModal({ open, onClose, onSuccess }: PurchaseOrderMo
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <Select
           showSearch
-          placeholder="Search or select medicine"
+          placeholder="Search by medicine or formula (generic) name"
           filterOption={false}
           onSearch={debouncedSearch}
           onDropdownVisibleChange={(open) => {
@@ -206,7 +215,7 @@ export function PurchaseOrderModal({ open, onClose, onSuccess }: PurchaseOrderMo
           allowClear
           options={medicineOptions.map((m) => ({
             value: m.id,
-            label: `${m?.name ?? ''}${m?.batch_no ? ` (${m.batch_no})` : ''} — ${formatCurrency(m?.unit_price_buy ?? 0)}`,
+            label: `${m?.name ?? ''}${(m as { generic_name?: string | null }).generic_name ? ` (${(m as { generic_name?: string | null }).generic_name})` : ''}${m?.batch_no ? ` · ${m.batch_no}` : ''} — ${formatCurrency(m?.unit_price_buy ?? 0)}`,
             unit_price_buy: m?.unit_price_buy ?? 0
           }))}
           fieldNames={{ value: 'value', label: 'label' }}

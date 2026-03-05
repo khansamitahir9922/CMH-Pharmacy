@@ -14,6 +14,7 @@ export interface MedicineFilters {
 export interface MedicineWithStock {
   id: number
   name: string
+  generic_name?: string | null
   category_id: number | null
   batch_no: string | null
   mfg_date: string | null
@@ -27,6 +28,7 @@ export interface MedicineWithStock {
   min_stock_level: number
   shelf_location: string | null
   notes: string | null
+  is_controlled?: boolean
   is_deleted: number
   created_at: string
   updated_at: string

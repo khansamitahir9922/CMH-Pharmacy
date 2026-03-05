@@ -26,6 +26,7 @@ export interface ReceiptBill {
 export interface ReceiptItem {
   medicine_id: number
   medicine_name: string | null
+  medicine_generic_name?: string | null
   quantity: number
   unit_price: number
   total: number
@@ -76,7 +77,14 @@ export function BillReceiptModal(props: {
   }, [bill, discountAmount])
 
   const columns: ColumnsType<ReceiptItem> = [
-    { title: 'Name', dataIndex: 'medicine_name', key: 'medicine_name', render: (v) => v ?? '—' },
+    {
+      title: 'Name',
+      key: 'medicine_name',
+      render: (_: unknown, r: ReceiptItem) =>
+        r.medicine_generic_name
+          ? `${r.medicine_name ?? '—'} (${r.medicine_generic_name})`
+          : (r.medicine_name ?? '—')
+    },
     { title: 'Qty', dataIndex: 'quantity', key: 'quantity', width: 56 },
     { title: 'Price', dataIndex: 'unit_price', key: 'unit_price', width: 90, render: (v) => formatCurrency(v ?? 0) },
     { title: 'Total', dataIndex: 'total', key: 'total', width: 90, render: (v) => formatCurrency(v ?? 0) }

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { Modal, Form, Input, InputNumber, Select, DatePicker, Row, Col, Spin, Button, notification } from 'antd'
+import { Modal, Form, Input, InputNumber, Select, DatePicker, Row, Col, Spin, Button, Switch, notification } from 'antd'
 import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import type { MedicineWithStock } from '@/hooks/useMedicines'
+import { useAuthStore } from '@/store/authStore'
 
 const dateFormat = 'DD/MM/YYYY'
 
@@ -19,6 +20,7 @@ export interface MedicineFormModalProps {
 
 interface FormValues {
   name: string
+  generic_name: string
   category_id: number | null
   batch_no: string
   barcode: string
@@ -33,6 +35,7 @@ interface FormValues {
   buy_price_rs: number
   sell_price_rs: number
   notes?: string
+  is_controlled?: boolean
 }
 
 export function MedicineFormModal({
@@ -43,6 +46,7 @@ export function MedicineFormModal({
   onClose,
   onSuccess
 }: MedicineFormModalProps): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [form] = Form.useForm<FormValues>()
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -63,6 +67,7 @@ export function MedicineFormModal({
             setEditName(medicine.name)
             form.setFieldsValue({
               name: medicine.name,
+              generic_name: medicine.generic_name ?? '',
               category_id: medicine.category_id ?? null,
               batch_no: medicine.batch_no ?? '',
               barcode: (medicine as { barcode?: string | null }).barcode ?? '',
@@ -74,9 +79,10 @@ export function MedicineFormModal({
               order_date: medicine.order_date ? dayjs(medicine.order_date) : null,
               opening_stock: medicine.current_quantity,
               min_stock_level: medicine.min_stock_level,
-              buy_price_rs: (medicine.unit_price_buy ?? 0) / 100,
-              sell_price_rs: (medicine.unit_price_sell ?? 0) / 100,
-              notes: medicine.notes ?? undefined
+              buy_price_rs: (medicine.unit_price_buy ?? 0) > 0 ? (medicine.unit_price_buy ?? 0) / 100 : undefined,
+              sell_price_rs: (medicine.unit_price_sell ?? 0) > 0 ? (medicine.unit_price_sell ?? 0) / 100 : undefined,
+              notes: medicine.notes ?? undefined,
+              is_controlled: medicine.is_controlled ?? false
             })
           }
         })
@@ -85,8 +91,9 @@ export function MedicineFormModal({
       form.setFieldsValue({
         opening_stock: 0,
         min_stock_level: 1,
-        buy_price_rs: undefined,
-        sell_price_rs: undefined,
+        buy_price_rs: undefined as number | undefined,
+        sell_price_rs: undefined as number | undefined,
+        is_controlled: false,
         ...(initialBarcode != null && initialBarcode !== '' ? { barcode: initialBarcode.trim() } : {})
       })
     }
@@ -105,8 +112,8 @@ export function MedicineFormModal({
 
     const buyPaisa = Math.round((values.buy_price_rs ?? 0) * 100)
     const sellPaisa = Math.round((values.sell_price_rs ?? 0) * 100)
-    if (sellPaisa < buyPaisa) {
-      form.setFields([{ name: 'sell_price_rs', errors: ['Sell price must be greater than or equal to buy price.'] }])
+    if (buyPaisa > 0 && sellPaisa > 0 && sellPaisa < buyPaisa) {
+      form.setFields([{ name: 'sell_price_rs', errors: ['Sell price must be greater than or equal to buy price when both are set.'] }])
       return
     }
 
@@ -116,6 +123,7 @@ export function MedicineFormModal({
         await window.api.invoke('medicines:update', {
           id: editId,
           name: values.name.trim(),
+          generic_name: values.generic_name?.trim() || null,
           category_id: values.category_id,
           batch_no: values.batch_no.trim(),
           barcode: values.barcode?.trim() || null,
@@ -128,12 +136,15 @@ export function MedicineFormModal({
           unit_price_buy: buyPaisa,
           unit_price_sell: sellPaisa,
           min_stock_level: values.min_stock_level,
-          notes: values.notes?.trim() ?? null
+          notes: values.notes?.trim() ?? null,
+          is_controlled: values.is_controlled ?? false,
+          userId: currentUser?.id
         })
         notification.success({ message: 'Medicine updated successfully.' })
       } else {
         await window.api.invoke<{ id: number }>('medicines:create', {
           name: values.name.trim(),
+          generic_name: values.generic_name?.trim() || null,
           category_id: values.category_id,
           batch_no: values.batch_no.trim(),
           barcode: values.barcode?.trim() || null,
@@ -147,7 +158,9 @@ export function MedicineFormModal({
           unit_price_buy: buyPaisa,
           unit_price_sell: sellPaisa,
           min_stock_level: values.min_stock_level ?? 1,
-          notes: values.notes?.trim() ?? null
+          notes: values.notes?.trim() ?? null,
+          is_controlled: values.is_controlled ?? false,
+          userId: currentUser?.id
         })
         notification.success({ message: 'Medicine added successfully.' })
       }
@@ -194,6 +207,9 @@ export function MedicineFormModal({
                 rules={[{ required: true, message: 'Please enter medicine name.' }]}
               >
                 <Input placeholder="Medicine name" />
+              </Form.Item>
+              <Form.Item name="generic_name" label="Generic Name" help="Formula name of the medicine (optional)">
+                <Input placeholder="e.g. Paracetamol, Amoxicillin" />
               </Form.Item>
               <Form.Item
                 name="category_id"
@@ -289,21 +305,24 @@ export function MedicineFormModal({
               <Form.Item
                 name="buy_price_rs"
                 label="Buy Price (Rs.)"
-                rules={[{ required: true, message: 'Please enter buy price.' }]}
+                help="Optional — for your records only (e.g. welfare / free distribution)"
               >
-                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." onFocus={selectAllOnFocus} />
+                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." placeholder="Optional" onFocus={selectAllOnFocus} />
               </Form.Item>
               <Form.Item
                 name="sell_price_rs"
                 label="Sell Price (Rs.)"
-                rules={[{ required: true, message: 'Please enter sell price.' }]}
+                help="Optional — for your records only; leave blank if not applicable"
               >
-                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." onFocus={selectAllOnFocus} />
+                <InputNumber min={0} step={0.01} style={{ width: '100%' }} addonAfter="Rs." placeholder="Optional" onFocus={selectAllOnFocus} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="notes" label="Notes">
                 <Input.TextArea rows={4} placeholder="Notes (optional)" />
+              </Form.Item>
+              <Form.Item name="is_controlled" label="Controlled drug" valuePropName="checked">
+                <Switch checkedChildren="Yes" unCheckedChildren="No" />
               </Form.Item>
             </Col>
           </Row>

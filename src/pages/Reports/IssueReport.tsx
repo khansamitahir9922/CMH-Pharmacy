@@ -3,6 +3,7 @@ import { Typography, DatePicker, Select, Table, Button, Skeleton } from 'antd'
 import { FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
+import { useAuthStore } from '@/store/authStore'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 interface MedicineIssueRow {
@@ -14,7 +15,10 @@ interface MedicineIssueRow {
   reference: string | null
 }
 
+const REPORT_NAME = 'Medicine Issue Report'
+
 export function IssueReport(): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf('month'),
     dayjs().endOf('month')
@@ -23,6 +27,10 @@ export function IssueReport(): React.ReactElement {
   const [medicines, setMedicines] = useState<{ id: number; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<MedicineIssueRow[]>([])
+
+  useEffect(() => {
+    window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     window.api
@@ -53,7 +61,12 @@ export function IssueReport(): React.ReactElement {
 
   const columns: ColumnsType<MedicineIssueRow> = [
     { title: 'Date', dataIndex: 'date', key: 'date', width: 110 },
-    { title: 'Medicine', dataIndex: 'medicine_name', key: 'medicine_name', render: (v) => v ?? '—' },
+    {
+      title: 'Medicine',
+      key: 'medicine_name',
+      render: (_: unknown, r: { medicine_name?: string | null; medicine_generic_name?: string | null }) =>
+        r.medicine_generic_name ? `${r.medicine_name ?? '—'} (${r.medicine_generic_name})` : (r.medicine_name ?? '—')
+    },
     { title: 'Qty Issued', dataIndex: 'quantity', key: 'quantity', width: 100, align: 'right' },
     { title: 'Type', dataIndex: 'type', key: 'type', width: 90 },
     { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v) => v ?? '—' },

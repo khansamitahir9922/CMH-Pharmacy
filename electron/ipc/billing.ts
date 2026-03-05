@@ -10,6 +10,7 @@ import {
   type PaymentMode,
   type GetBillsFilters
 } from '../../src/db/queries/billing'
+import { log as auditLog } from '../../src/db/queries/audit'
 
 interface CreateBillPayload {
   customer?: { name?: string | null; phone?: string | null } | null
@@ -27,7 +28,7 @@ export function registerBillingHandlers(): void {
     if (!payload?.items?.length) throw new Error('Add at least one medicine to generate a bill.')
     const discountPercent = payload?.discount?.percent ?? 0
     const taxPercent = payload?.tax?.percent ?? 0
-    return createBill({
+    const result = createBill({
       customerName: payload?.customer?.name ?? null,
       customerPhone: payload?.customer?.phone ?? null,
       items: payload.items.map((it) => ({
@@ -41,6 +42,14 @@ export function registerBillingHandlers(): void {
       amountReceived: payload.received ?? null,
       createdBy: payload.createdBy ?? null
     })
+    auditLog({
+      user_id: payload?.createdBy ?? null,
+      action: 'Create bill',
+      table_name: 'bills',
+      record_id: result.bill.id,
+      details: result.bill.bill_number ?? null
+    })
+    return result
   })
 
   ipcMain.handle('billing:getBills', async (_event, filters: GetBillsFilters) => {
@@ -57,6 +66,13 @@ export function registerBillingHandlers(): void {
     if (!payload?.reason?.trim()) throw new Error('Void reason is required.')
     if (!payload?.voidedBy || typeof payload.voidedBy !== 'number') throw new Error('Voided by user is required.')
     voidBill({ billId: payload.billId, reason: payload.reason, voidedBy: payload.voidedBy })
+    auditLog({
+      user_id: payload.voidedBy,
+      action: 'Void bill',
+      table_name: 'bills',
+      record_id: payload.billId,
+      details: payload.reason
+    })
   })
 
   ipcMain.handle('billing:getDailySummary', async (_event, date: string) => {
@@ -73,7 +89,7 @@ export function registerBillingHandlers(): void {
   })
 
   ipcMain.handle('billing:create', async (_event, payload: CreateBillPayload) => {
-    return createBill({
+    const result = createBill({
       customerName: payload?.customer?.name ?? null,
       customerPhone: payload?.customer?.phone ?? null,
       items: payload?.items ?? [],
@@ -83,10 +99,25 @@ export function registerBillingHandlers(): void {
       amountReceived: payload?.received ?? null,
       createdBy: payload?.createdBy ?? null
     })
+    auditLog({
+      user_id: payload?.createdBy ?? null,
+      action: 'Create bill',
+      table_name: 'bills',
+      record_id: result.bill.id,
+      details: result.bill.bill_number ?? null
+    })
+    return result
   })
 
   ipcMain.handle('billing:void', async (_event, payload: { billId: number; reason: string; voidedBy: number }) => {
     voidBill({ billId: payload.billId, reason: payload.reason, voidedBy: payload.voidedBy })
+    auditLog({
+      user_id: payload.voidedBy,
+      action: 'Void bill',
+      table_name: 'bills',
+      record_id: payload.billId,
+      details: payload.reason
+    })
   })
 
   ipcMain.handle('billing:getNextBillNumber', async () => {

@@ -29,6 +29,11 @@ const StockReport = lazy(() => import('@/pages/Reports/StockReport').then((m) =>
 const PurchaseReport = lazy(() => import('@/pages/Reports/PurchaseReport').then((m) => ({ default: m.PurchaseReport })))
 const IssueReport = lazy(() => import('@/pages/Reports/IssueReport').then((m) => ({ default: m.IssueReport })))
 const LowStockReport = lazy(() => import('@/pages/Reports/LowStockReport').then((m) => ({ default: m.LowStockReport })))
+const AdjustmentLogReport = lazy(() => import('@/pages/Reports/AdjustmentLogReport').then((m) => ({ default: m.AdjustmentLogReport })))
+const StockVarianceReport = lazy(() => import('@/pages/Reports/StockVarianceReport').then((m) => ({ default: m.StockVarianceReport })))
+const NearExpiryReport = lazy(() => import('@/pages/Reports/NearExpiryReport').then((m) => ({ default: m.NearExpiryReport })))
+const PurchaseVsConsumptionReport = lazy(() => import('@/pages/Reports/PurchaseVsConsumptionReport').then((m) => ({ default: m.PurchaseVsConsumptionReport })))
+const ControlledDrugRegisterReport = lazy(() => import('@/pages/Reports/ControlledDrugRegisterReport').then((m) => ({ default: m.ControlledDrugRegisterReport })))
 const SettingsPage = lazy(() => import('@/pages/Settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 type BootStatus = 'loading' | 'first-run' | 'ready'
@@ -126,6 +131,11 @@ export function AppBoot(): React.ReactElement {
           <Route path="low-stock" element={<LowStockReport />} />
           <Route path="purchase" element={<PurchaseReport />} />
           <Route path="issue" element={<IssueReport />} />
+          <Route path="stock-variance" element={<StockVarianceReport />} />
+          <Route path="near-expiry" element={<NearExpiryReport />} />
+          <Route path="adjustment-log" element={<AdjustmentLogReport />} />
+          <Route path="purchase-vs-consumption" element={<PurchaseVsConsumptionReport />} />
+          <Route path="controlled-drug-register" element={<ControlledDrugRegisterReport />} />
         </Route>
         <Route path="settings" element={<SettingsPage />} />
         </Route>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
-import { Layout, Menu, Dropdown, Modal, theme, Badge, Spin } from 'antd'
+import { Layout, Menu, Dropdown, Modal, theme, Badge, Spin, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   DashboardOutlined,
@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
-import { useAlertStore } from '@/store/alertStore'
+import { useAlertStore, type InventorySummaryCounts } from '@/store/alertStore'
 import { StartupAlertModal } from '@/components/StartupAlertModal'
 import { ShortcutsHelpModal } from '@/components/ShortcutsHelpModal'
 
@@ -40,7 +40,7 @@ export function AppLayout(): React.ReactElement {
 
   useEffect(() => {
     const fetchSummary = (): void => {
-      window.api.invoke<{ totalMedicines: number; lowStock: number; expiringThisMonth: number; expired: number }>('inventory:getSummary').then((s) => {
+      window.api.invoke<InventorySummaryCounts>('inventory:getSummary').then((s) => {
         if (s) setSummary(s)
       }).catch(() => {})
     }
@@ -50,23 +50,85 @@ export function AppLayout(): React.ReactElement {
   }, [setSummary])
 
   const menuLabelColor = { color: 'rgba(255, 255, 255, 0.92)' }
+  const tooltipProps = { placement: 'right' as const, mouseEnterDelay: 0.4 }
+  const labelWrap = { display: 'block', minWidth: 0, width: '100%' as const }
   const siderMenuItems: MenuProps['items'] = useMemo(() => [
-    { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: (
+        <Tooltip title="Overview: today's sales, bills, stock. Quick actions: New Bill, Add Medicine, Stock In." {...tooltipProps}>
+          <span style={{ ...menuLabelColor, ...labelWrap }}>Dashboard</span>
+        </Tooltip>
+      )
+    },
     {
       key: '/medicines',
       icon: <MedicineBoxOutlined />,
-      label: summary.expired > 0 ? <Badge count={summary.expired} size="small"><span style={menuLabelColor}>Medicines</span></Badge> : 'Medicines'
+      label: (
+        <Tooltip title="Manage medicine catalog: add, edit, delete medicines. Search by name or barcode. Filter by category and stock." {...tooltipProps}>
+          <span style={labelWrap}>
+            {summary.expired > 0 ? <Badge count={summary.expired} size="small"><span style={menuLabelColor}>Medicines</span></Badge> : <span style={menuLabelColor}>Medicines</span>}
+          </span>
+        </Tooltip>
+      )
     },
     {
       key: '/inventory',
       icon: <InboxOutlined />,
-      label: summary.lowStock > 0 ? <Badge count={summary.lowStock} size="small"><span style={menuLabelColor}>Inventory</span></Badge> : 'Inventory'
+      label: (
+        <Tooltip title="Stock in, stock out, adjustments. View stock transactions, low stock alerts, and expiry report." {...tooltipProps}>
+          <span style={labelWrap}>
+            {summary.lowStock > 0 ? <Badge count={summary.lowStock} size="small"><span style={menuLabelColor}>Inventory</span></Badge> : <span style={menuLabelColor}>Inventory</span>}
+          </span>
+        </Tooltip>
+      )
     },
-    { key: '/suppliers', icon: <TeamOutlined />, label: 'Suppliers' },
-    { key: '/billing/pos', icon: <ShoppingCartOutlined />, label: 'Billing' },
-    { key: '/prescriptions', icon: <FileTextOutlined />, label: 'Prescriptions' },
-    { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
-    { key: '/settings', icon: <SettingOutlined />, label: 'Settings' }
+    {
+      key: '/suppliers',
+      icon: <TeamOutlined />,
+      label: (
+        <Tooltip title="Manage suppliers, create purchase orders, and record payments." {...tooltipProps}>
+          <span style={{ ...menuLabelColor, ...labelWrap }}>Suppliers</span>
+        </Tooltip>
+      )
+    },
+    {
+      key: '/billing/pos',
+      icon: <ShoppingCartOutlined />,
+      label: (
+        <Tooltip title="Point of sale: search medicines, add to bill, apply discount/tax, complete sale and print receipt." {...tooltipProps}>
+          <span style={{ ...menuLabelColor, ...labelWrap }}>Billing</span>
+        </Tooltip>
+      )
+    },
+    {
+      key: '/prescriptions',
+      icon: <FileTextOutlined />,
+      label: (
+        <Tooltip title="Add and view prescriptions. Link prescriptions to bills. Upload prescription images." {...tooltipProps}>
+          <span style={{ ...menuLabelColor, ...labelWrap }}>Prescriptions</span>
+        </Tooltip>
+      )
+    },
+    {
+      key: '/reports',
+      icon: <BarChartOutlined />,
+      label: (
+        <Tooltip title="Sales, stock, purchase, expiry and other reports. Export to Excel or print." {...tooltipProps}>
+          <span style={{ ...menuLabelColor, ...labelWrap }}>Reports</span>
+        </Tooltip>
+      )
+    },
+    {
+      key: '/settings',
+      icon: <SettingOutlined />,
+      label: (
+        <Tooltip title="Pharmacy profile, users, backup & restore, audit log." {...tooltipProps}>
+          <span style={{ ...menuLabelColor, ...labelWrap }}>Settings</span>
+        </Tooltip>
+      )
+    }
   ], [summary.expired, summary.lowStock])
 
   const resetSessionTimer = useCallback(() => {
@@ -93,13 +155,13 @@ export function AppLayout(): React.ReactElement {
 
   const handleSessionExpiredClose = (): void => {
     setSessionExpiredOpen(false)
-    window.api.invoke('auth:logout').catch(() => {})
+    window.api.invoke('auth:logout', { userId: currentUser?.id }).catch(() => {})
     logout()
     navigate('/login', { replace: true })
   }
 
   const handleLogout = (): void => {
-    window.api.invoke('auth:logout').catch(() => {})
+    window.api.invoke('auth:logout', { userId: currentUser?.id }).catch(() => {})
     logout()
     navigate('/login', { replace: true })
   }
@@ -240,13 +302,13 @@ export function AppLayout(): React.ReactElement {
               <img
                 src={LOGO_PATH}
                 alt=""
-                style={{ height: 32, width: 'auto', objectFit: 'contain' }}
+                style={{ height: 38, width: 'auto', objectFit: 'contain' }}
                 onError={() => setLogoError(true)}
               />
             ) : (
-              <MedicineBoxOutlined style={{ fontSize: 24, color: token.colorPrimary }} />
+              <MedicineBoxOutlined style={{ fontSize: 28, color: token.colorPrimary }} />
             )}
-            <h3 style={{ margin: 0, color: token.colorText, fontWeight: 600 }}>
+            <h3 style={{ margin: 0, color: token.colorText, fontWeight: 700, fontSize: 22, letterSpacing: '0.02em' }}>
               SKBZ/CMH RAWALAKOT PHARMACY
             </h3>
           </div>
@@ -303,8 +365,9 @@ export function AppLayout(): React.ReactElement {
         </Content>
 
         {!isPOS && (
-          <Footer style={{ textAlign: 'center', color: token.colorTextSecondary }}>
+          <Footer style={{ textAlign: 'center', color: token.colorTextSecondary, fontSize: 13 }}>
             SKBZ/CMH RAWALAKOT PHARMACY v1.0
+            <span style={{ marginLeft: 16, opacity: 0.9 }}>Press ? for shortcuts</span>
           </Footer>
         )}
       </Layout>

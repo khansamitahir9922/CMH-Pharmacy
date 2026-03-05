@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Typography, Button, Empty, Input, Table, Space, Modal, message } from 'antd'
+import { Typography, Button, Empty, Input, Table, Space, Modal, message, Spin } from 'antd'
 import { PlusOutlined, EyeOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -7,6 +7,26 @@ import { formatDate } from '@/utils/expiryStatus'
 import type { PrescriptionListRow } from '@/db/queries/prescriptions'
 import { PrescriptionFormModal } from './PrescriptionFormModal'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+
+function PrescriptionImageView({
+  imagePath,
+  onLoaded
+}: {
+  imagePath: string
+  onLoaded: (data: { dataUrl: string; isPdf: boolean } | null) => void
+}): React.ReactElement {
+  useEffect(() => {
+    let cancelled = false
+    window.api
+      .invoke<{ dataUrl: string; isPdf: boolean } | null>('prescriptions:getImageDataUrl', { imagePath })
+      .then((res) => {
+        if (!cancelled && res) onLoaded(res)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [imagePath, onLoaded])
+  return <Spin size="small" /> 
+}
 
 export function PrescriptionsPage(): React.ReactElement {
   const [search, setSearch] = useState('')
@@ -19,6 +39,7 @@ export function PrescriptionsPage(): React.ReactElement {
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [viewRow, setViewRow] = useState<PrescriptionListRow | null>(null)
+  const [viewImageData, setViewImageData] = useState<{ dataUrl: string; isPdf: boolean } | null>(null)
   const abortRef = useRef(false)
 
   const fetchList = (): void => {
@@ -109,7 +130,7 @@ export function PrescriptionsPage(): React.ReactElement {
       width: 120,
       render: (_, record) => (
         <Space size={4}>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setViewRow(record)} />
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => { setViewRow(record); setViewImageData(null) }} />
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
           <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
         </Space>
@@ -159,9 +180,9 @@ export function PrescriptionsPage(): React.ReactElement {
       <Modal
         open={!!viewRow}
         title={viewRow ? `Prescription — ${viewRow.patient_name}` : 'Prescription'}
-        onCancel={() => setViewRow(null)}
-        footer={viewRow ? <Button onClick={() => { setViewRow(null); handleEdit(viewRow) }}>Edit</Button> : null}
-        width={560}
+        onCancel={() => { setViewRow(null); setViewImageData(null) }}
+        footer={viewRow ? <Button onClick={() => { setViewRow(null); setViewImageData(null); handleEdit(viewRow) }}>Edit</Button> : null}
+        width={640}
       >
         {viewRow && (
           <div>
@@ -174,6 +195,29 @@ export function PrescriptionsPage(): React.ReactElement {
             </pre>
             <p><strong>Linked Bill:</strong> {viewRow.linked_bill_number ?? '—'}</p>
             {viewRow.notes && <p><strong>Notes:</strong> {viewRow.notes}</p>}
+            {viewRow.has_image && viewRow.image_path && (
+              <div style={{ marginTop: 16 }}>
+                <p><strong>Uploaded prescription</strong></p>
+                <PrescriptionImageView imagePath={viewRow.image_path} onLoaded={setViewImageData} />
+                {viewImageData && (
+                  <div style={{ marginTop: 8, border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', maxHeight: 400 }}>
+                    {viewImageData.isPdf ? (
+                      <iframe
+                        src={viewImageData.dataUrl}
+                        title="Prescription"
+                        style={{ width: '100%', height: 380, border: 'none' }}
+                      />
+                    ) : (
+                      <img
+                        src={viewImageData.dataUrl}
+                        alt="Prescription"
+                        style={{ width: '100%', maxHeight: 380, objectFit: 'contain', display: 'block' }}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Modal>

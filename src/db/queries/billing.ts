@@ -29,6 +29,7 @@ export interface BillItemRow {
   bill_id: number
   medicine_id: number
   medicine_name: string | null
+  medicine_generic_name?: string | null
   batch_no: string | null
   quantity: number
   unit_price: number
@@ -171,6 +172,7 @@ export function createBill(input: CreateBillInput): BillDetailResult {
         SELECT 
           m.id               AS medicine_id,
           m.name             AS name,
+          m.generic_name     AS generic_name,
           m.batch_no         AS batch_no,
           m.is_deleted       AS is_deleted,
           s.current_quantity AS current_quantity
@@ -182,15 +184,17 @@ export function createBill(input: CreateBillInput): BillDetailResult {
       .all(...uniqueIds) as Array<{
         medicine_id: number
         name: string
+        generic_name: string | null
         batch_no: string | null
         is_deleted: number
         current_quantity: number | null
       }>
 
-    const byId = new Map<number, { name: string; batch_no: string | null; is_deleted: number; current_quantity: number }>()
+    const byId = new Map<number, { name: string; generic_name: string | null; batch_no: string | null; is_deleted: number; current_quantity: number }>()
     for (const r of stockRows) {
       byId.set(r.medicine_id, {
         name: r.name,
+        generic_name: r.generic_name ?? null,
         batch_no: r.batch_no ?? null,
         is_deleted: r.is_deleted ? 1 : 0,
         current_quantity: r.current_quantity ?? 0
@@ -222,10 +226,10 @@ export function createBill(input: CreateBillInput): BillDetailResult {
     let changeDue = 0
     if (paymentMode === 'cash') {
       amountReceived = toInt(input.amountReceived ?? 0)
-      if (amountReceived < totalAmount) {
+      if (totalAmount > 0 && amountReceived < totalAmount) {
         throw new Error('Amount received is less than total.')
       }
-      changeDue = amountReceived - totalAmount
+      changeDue = Math.max(0, amountReceived - totalAmount)
     } else {
       amountReceived = totalAmount
       changeDue = 0
@@ -316,6 +320,7 @@ export function createBill(input: CreateBillInput): BillDetailResult {
         bill_id: billId,
         medicine_id: it.medicineId,
         medicine_name: info?.name ?? null,
+        medicine_generic_name: info?.generic_name ?? null,
         batch_no: info?.batch_no ?? null,
         quantity: it.quantity,
         unit_price: it.unitPrice,
@@ -470,6 +475,7 @@ export function getBillById(billId: number): BillDetailResult | null {
       unit_price: billItems.unit_price,
       total: billItems.total,
       medicine_name: medicines.name,
+      medicine_generic_name: medicines.generic_name,
       batch_no: medicines.batch_no
     })
     .from(billItems)
@@ -533,6 +539,9 @@ export function voidBill(input: VoidBillInput): void {
       SET current_quantity = current_quantity + ?, updated_at = ?
       WHERE medicine_id = ?
     `)
+    const insertStock = sqlite.prepare(`
+      INSERT INTO stock (medicine_id, current_quantity, updated_at) VALUES (?, ?, ?)
+    `)
 
     for (const it of items) {
       insertTxn.run(
@@ -544,7 +553,10 @@ export function voidBill(input: VoidBillInput): void {
         voidedBy,
         now
       )
-      updateStock.run(it.quantity, now, it.medicine_id)
+      const upd = updateStock.run(it.quantity, now, it.medicine_id) as { changes: number }
+      if (upd.changes === 0) {
+        insertStock.run(it.medicine_id, it.quantity, now)
+      }
     }
   })
 

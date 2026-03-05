@@ -6,6 +6,7 @@ import AdmZip from 'adm-zip'
 import { getDbPath, closeDatabase } from '../../src/db/init'
 import { getAll as getSettings, update as updateSetting } from '../../src/db/queries/settings'
 import { getLogs as getBackupLogs, logBackup } from '../../src/db/queries/backup'
+import { log as auditLog } from '../../src/db/queries/audit'
 
 function formatBackupFilename(): string {
   const d = new Date()
@@ -19,7 +20,9 @@ function formatBackupFilename(): string {
 }
 
 export function registerBackupHandlers(): void {
-  ipcMain.handle('backup:create', async (): Promise<{ success: true; filePath: string; fileSize: number } | { success: false; error: string }> => {
+  ipcMain.handle(
+    'backup:create',
+    async (_event, payload?: { userId?: number }): Promise<{ success: true; filePath: string; fileSize: number } | { success: false; error: string }> => {
     try {
       const settings = getSettings()
       let backupDir = (settings.backup_folder ?? '').trim()
@@ -45,6 +48,11 @@ export function registerBackupHandlers(): void {
       const stat = statSync(outPath)
       const fileSize = stat.size
       logBackup({ file_path: outPath, file_size: fileSize, status: 'success' })
+      auditLog({
+        user_id: payload?.userId ?? null,
+        action: 'Backup created',
+        details: outPath
+      })
       return { success: true, filePath: outPath, fileSize }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Backup failed.'
@@ -57,7 +65,9 @@ export function registerBackupHandlers(): void {
 
   ipcMain.handle(
     'backup:restore',
-    async (_event, zipPath: string): Promise<{ success: true } | { success: false; error: string }> => {
+    async (_event, zipPathOrPayload: string | { zipPath: string; userId?: number }): Promise<{ success: true } | { success: false; error: string }> => {
+      const zipPath = typeof zipPathOrPayload === 'string' ? zipPathOrPayload : zipPathOrPayload?.zipPath
+      const userId = typeof zipPathOrPayload === 'object' && zipPathOrPayload != null && 'userId' in zipPathOrPayload ? zipPathOrPayload.userId : undefined
       try {
         if (!zipPath || !existsSync(zipPath)) {
           return { success: false, error: 'Backup file not found.' }
@@ -80,6 +90,11 @@ export function registerBackupHandlers(): void {
         }
         copyFileSync(extractedPath, dbPath)
         unlinkSync(extractedPath)
+        auditLog({
+          user_id: userId ?? null,
+          action: 'Backup restored',
+          details: zipPath
+        })
         return { success: true }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Restore failed.'

@@ -1,6 +1,6 @@
 import { ipcMain, app } from 'electron'
 import { join } from 'path'
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from 'fs'
+import { mkdirSync, writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs'
 import {
   getAll,
   getById,
@@ -41,6 +41,24 @@ function deleteImageFile(imagePath: string | null): void {
     if (existsSync(imagePath)) unlinkSync(imagePath)
   } catch {
     // ignore
+  }
+}
+
+/**
+ * Read prescription image/PDF from disk and return as data URL for display in renderer.
+ */
+function getImageDataUrl(imagePath: string | null): { dataUrl: string; isPdf: boolean } | null {
+  if (!imagePath || !String(imagePath).trim()) return null
+  try {
+    if (!existsSync(imagePath)) return null
+    const buf = readFileSync(imagePath)
+    const base64 = buf.toString('base64')
+    const ext = imagePath.toLowerCase().slice(-4)
+    const isPdf = ext === '.pdf'
+    const mime = isPdf ? 'application/pdf' : ext === '.png' ? 'image/png' : 'image/jpeg'
+    return { dataUrl: `data:${mime};base64,${base64}`, isPdf }
+  } catch {
+    return null
   }
 }
 
@@ -87,6 +105,13 @@ export function registerPrescriptionsHandlers(): void {
     async (_event, payload: { base64: string; extension: string }) => {
       const ext = payload?.extension === 'pdf' ? 'pdf' : payload?.extension === 'png' ? 'png' : 'jpg'
       return saveImageToDisk(payload?.base64 ?? '', ext)
+    }
+  )
+
+  ipcMain.handle(
+    'prescriptions:getImageDataUrl',
+    async (_event, payload: { imagePath: string | null }) => {
+      return getImageDataUrl(payload?.imagePath ?? null)
     }
   )
 }

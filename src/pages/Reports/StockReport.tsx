@@ -3,6 +3,7 @@ import { Typography, DatePicker, Select, Table, Card, Row, Col, Button, Skeleton
 import { FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
+import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/utils/expiryStatus'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
@@ -24,13 +25,20 @@ interface StockBalanceRow {
   closing: number
 }
 
+const REPORT_NAME = 'Stock Balance Report'
+
 export function StockReport(): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [asOfDate, setAsOfDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<StockBalanceSummary | null>(null)
   const [rows, setRows] = useState<StockBalanceRow[]>([])
+
+  useEffect(() => {
+    window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     window.api
@@ -62,7 +70,12 @@ export function StockReport(): React.ReactElement {
   }, [asOfDate, categoryId])
 
   const columns: ColumnsType<StockBalanceRow> = [
-    { title: 'Medicine', dataIndex: 'medicine_name', key: 'medicine_name' },
+    {
+      title: 'Medicine',
+      key: 'medicine_name',
+      render: (_: unknown, r: { medicine_name?: string; medicine_generic_name?: string | null }) =>
+        r.medicine_generic_name ? `${r.medicine_name ?? '—'} (${r.medicine_generic_name})` : (r.medicine_name ?? '—')
+    },
     { title: 'Category', dataIndex: 'category_name', key: 'category_name', render: (v) => v ?? '—' },
     { title: 'Batch', dataIndex: 'batch_no', key: 'batch_no', render: (v) => v ?? '—' },
     { title: 'Expiry', dataIndex: 'expiry_date', key: 'expiry_date', width: 110, render: (v) => (v ? v.slice(0, 10) : '—') },
@@ -74,7 +87,7 @@ export function StockReport(): React.ReactElement {
 
   const handleExportExcel = (): void => {
     const data = rows.map((r) => ({
-      Medicine: r.medicine_name,
+      Medicine: r.medicine_generic_name ? `${r.medicine_name} (${r.medicine_generic_name})` : r.medicine_name,
       Category: r.category_name ?? '',
       Batch: r.batch_no ?? '',
       Expiry: r.expiry_date ?? '',
@@ -92,7 +105,7 @@ export function StockReport(): React.ReactElement {
 
   const handleExportPdf = (): void => {
     const data = rows.map((r) => ({
-      Medicine: r.medicine_name,
+      Medicine: r.medicine_generic_name ? `${r.medicine_name} (${r.medicine_generic_name})` : r.medicine_name,
       Category: r.category_name ?? '',
       Batch: r.batch_no ?? '',
       Expiry: r.expiry_date ?? '',

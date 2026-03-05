@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined } from '@ant-de
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { formatCurrency } from '@/utils/expiryStatus'
+import { useAuthStore } from '@/store/authStore'
 import { SupplierFormModal } from './SupplierFormModal'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
@@ -20,6 +21,7 @@ interface SupplierRow {
 
 export function SupplierListPage(): React.ReactElement {
   const navigate = useNavigate()
+  const { currentUser } = useAuthStore()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 300)
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([])
@@ -85,7 +87,7 @@ export function SupplierListPage(): React.ReactElement {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          await window.api.invoke('suppliers:delete', record.id)
+          await window.api.invoke('suppliers:delete', { id: record.id, userId: currentUser?.id })
           message.success('Supplier deleted.')
           fetchSuppliers()
         } catch (err) {

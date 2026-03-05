@@ -153,10 +153,12 @@ export function StockTransactions(): React.ReactElement {
     {
       title: 'Medicine',
       key: 'medicine',
-      render: (_, r) =>
-        r.medicine_name
-          ? r.medicine_name + (r.batch_no ? ' (' + r.batch_no + ')' : '')
-          : '—'
+      render: (_, r) => {
+        if (!r.medicine_name) return '—'
+        const generic = (r as { medicine_generic_name?: string | null }).medicine_generic_name
+        const name = generic ? `${r.medicine_name} (${generic})` : r.medicine_name
+        return r.batch_no ? `${name} · ${r.batch_no}` : name
+      }
     },
     {
       title: 'Type',
@@ -197,14 +199,14 @@ export function StockTransactions(): React.ReactElement {
           >
             <Select
               showSearch
-              placeholder="Search medicine by name or batch"
+              placeholder="Search by medicine name, formula (generic) name, or batch"
               filterOption={false}
               onSearch={debouncedSearch}
               onFocus={() => loadMedicineOptions(form.getFieldValue('medicineId') ? '' : ' ')}
               optionLabelProp="label"
               options={medicineOptions.map((m) => ({
                 value: m.id,
-                label: m.name + (m.batch_no ? ' (' + m.batch_no + ')' : '') + ' — Stock: ' + m.current_quantity
+                label: `${m.name}${(m as { generic_name?: string | null }).generic_name ? ` (${(m as { generic_name?: string | null }).generic_name})` : ''}${m.batch_no ? ` · ${m.batch_no}` : ''} — Stock: ${m.current_quantity}`
               }))}
             />
           </Form.Item>

@@ -12,6 +12,7 @@ import {
   type CreateMedicineInput,
   type UpdateMedicineInput
 } from '../../src/db/queries/medicines'
+import { log as auditLog } from '../../src/db/queries/audit'
 
 export interface GetAllPayload {
   search?: string
@@ -50,31 +51,63 @@ export function registerMedicinesHandlers(): void {
 
   ipcMain.handle(
     'medicines:create',
-    async (_event, data: CreateMedicineInput): Promise<{ id: number }> => {
+    async (_event, data: CreateMedicineInput & { userId?: number }): Promise<{ id: number }> => {
       if (!data?.name?.trim() || !data?.batch_no?.trim() || !data?.firm_name?.trim()) {
         throw new Error('Name, batch number and manufacturer are required.')
       }
       if (data.opening_stock < 0) throw new Error('Opening stock cannot be negative.')
       if (data.min_stock_level < 1) throw new Error('Minimum stock level must be at least 1.')
-      if (data.unit_price_sell < data.unit_price_buy) {
-        throw new Error('Sell price must be greater than or equal to buy price.')
+      const buy = data.unit_price_buy ?? 0
+      const sell = data.unit_price_sell ?? 0
+      if (buy > 0 && sell > 0 && sell < buy) {
+        throw new Error('Sell price must be greater than or equal to buy price when both are set.')
       }
-      return create(data)
+      const { userId, ...input } = data
+      const result = create(input)
+      auditLog({
+        user_id: userId ?? null,
+        action: 'Create medicine',
+        table_name: 'medicines',
+        record_id: result.id,
+        details: input.name
+      })
+      return result
     }
   )
 
-  ipcMain.handle('medicines:update', async (_event, data: UpdateMedicineInput) => {
+  ipcMain.handle('medicines:update', async (_event, data: UpdateMedicineInput & { userId?: number }) => {
     if (!data?.id) throw new Error('Medicine ID is required.')
-    if (data.unit_price_sell != null && data.unit_price_buy != null && data.unit_price_sell < data.unit_price_buy) {
-      throw new Error('Sell price must be greater than or equal to buy price.')
+    const buy = data.unit_price_buy ?? 0
+    const sell = data.unit_price_sell ?? 0
+    if (buy > 0 && sell > 0 && sell < buy) {
+      throw new Error('Sell price must be greater than or equal to buy price when both are set.')
     }
-    update(data)
-    return getById(data.id)
+    const { userId, ...input } = data
+    update(input)
+    const updated = getById(data.id)
+    auditLog({
+      user_id: userId ?? null,
+      action: 'Update medicine',
+      table_name: 'medicines',
+      record_id: data.id,
+      details: updated?.name ?? null
+    })
+    return updated
   })
 
-  ipcMain.handle('medicines:delete', async (_event, id: number) => {
+  ipcMain.handle('medicines:delete', async (_event, payload: number | { id: number; userId?: number }) => {
+    const id = typeof payload === 'object' && payload != null && 'id' in payload ? payload.id : payload
+    const userId = typeof payload === 'object' && payload != null && 'userId' in payload ? payload.userId : undefined
     if (id == null || typeof id !== 'number') throw new Error('Invalid medicine ID.')
+    const before = getById(id)
     remove(id)
+    auditLog({
+      user_id: userId ?? null,
+      action: 'Delete medicine',
+      table_name: 'medicines',
+      record_id: id,
+      details: before?.name ?? null
+    })
   })
 
   ipcMain.handle('medicines:getCategories', async () => {

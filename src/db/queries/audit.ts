@@ -1,6 +1,6 @@
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { getDb } from '../init'
-import { auditLog, users } from '../schema'
+import { auditLog, users, bills, stockTransactions } from '../schema'
 
 export interface AuditLogRow {
   id: number
@@ -89,6 +89,45 @@ export function getLogs(filters: GetAuditLogsFilters): { data: AuditLogRow[]; to
   }))
 
   return { data, total }
+}
+
+export interface UserActivitySummary {
+  salesCount: number
+  salesAmount: number
+  stockInQty: number
+  stockOutQty: number
+}
+
+/**
+ * Get per-user activity summary: bills created (sales) and stock in/out performed by the user.
+ */
+export function getUserActivitySummary(
+  userId: number,
+  startDate?: string | null,
+  endDate?: string | null
+): UserActivitySummary {
+  const db = getDb()
+  const conditionsBills: unknown[] = [eq(bills.created_by, userId), eq(bills.is_voided, false)]
+  const conditionsIn: unknown[] = [eq(stockTransactions.performed_by, userId), eq(stockTransactions.transaction_type, 'in')]
+  const conditionsOut: unknown[] = [eq(stockTransactions.performed_by, userId), eq(stockTransactions.transaction_type, 'out')]
+  if (startDate) {
+    conditionsBills.push(sql`substr(${bills.created_at}, 1, 10) >= ${String(startDate).slice(0, 10)}`)
+    conditionsIn.push(sql`substr(${stockTransactions.created_at}, 1, 10) >= ${String(startDate).slice(0, 10)}`)
+    conditionsOut.push(sql`substr(${stockTransactions.created_at}, 1, 10) >= ${String(startDate).slice(0, 10)}`)
+  }
+  if (endDate) {
+    conditionsBills.push(sql`substr(${bills.created_at}, 1, 10) <= ${String(endDate).slice(0, 10)}`)
+    conditionsIn.push(sql`substr(${stockTransactions.created_at}, 1, 10) <= ${String(endDate).slice(0, 10)}`)
+    conditionsOut.push(sql`substr(${stockTransactions.created_at}, 1, 10) <= ${String(endDate).slice(0, 10)}`)
+  }
+  const billRows = db.select({ id: bills.id, total_amount: bills.total_amount }).from(bills).where(and(...(conditionsBills as never[]))).all()
+  const salesCount = billRows.length
+  const salesAmount = billRows.reduce((sum, r) => sum + (r.total_amount ?? 0), 0)
+  const inRows = db.select({ quantity: stockTransactions.quantity }).from(stockTransactions).where(and(...(conditionsIn as never[]))).all()
+  const outRows = db.select({ quantity: stockTransactions.quantity }).from(stockTransactions).where(and(...(conditionsOut as never[]))).all()
+  const stockInQty = inRows.reduce((sum, r) => sum + (r.quantity ?? 0), 0)
+  const stockOutQty = outRows.reduce((sum, r) => sum + (r.quantity ?? 0), 0)
+  return { salesCount, salesAmount, stockInQty, stockOutQty }
 }
 
 /**

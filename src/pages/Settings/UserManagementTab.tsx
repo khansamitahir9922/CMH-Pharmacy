@@ -63,7 +63,8 @@ export function UserManagementTab(): React.ReactElement {
           full_name: values.full_name,
           username: values.username,
           password: values.password,
-          role: values.role ?? 'dataentry'
+          role: values.role ?? 'dataentry',
+          createdBy: currentUser?.id
         })
         .then((res) => {
           if (res?.success) {
@@ -124,7 +125,8 @@ export function UserManagementTab(): React.ReactElement {
       window.api
         .invoke<{ success: boolean; error?: string }>('users:resetPassword', {
           userId: targetUser.id,
-          newPassword: values.newPassword
+          newPassword: values.newPassword,
+          currentUserId: currentUser?.id
         })
         .then((res) => {
           if (res?.success) {

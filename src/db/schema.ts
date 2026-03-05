@@ -28,6 +28,7 @@ export const medicineCategories = sqliteTable('medicine_categories', {
 export const medicines = sqliteTable('medicines', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  generic_name: text('generic_name'),
   category_id: integer('category_id').references(() => medicineCategories.id),
   batch_no: text('batch_no'),
   barcode: text('barcode'),
@@ -42,6 +43,7 @@ export const medicines = sqliteTable('medicines', {
   min_stock_level: integer('min_stock_level').notNull().default(10),
   shelf_location: text('shelf_location'),
   notes: text('notes'),
+  is_controlled: integer('is_controlled', { mode: 'boolean' }).notNull().default(false),
   is_deleted: integer('is_deleted', { mode: 'boolean' }).notNull().default(false),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
   updated_at: text('updated_at').notNull().default(sql`(datetime('now'))`)
@@ -90,6 +92,7 @@ export const suppliers = sqliteTable('suppliers', {
 export const purchaseOrders = sqliteTable('purchase_orders', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   order_number: text('order_number').notNull().unique(),
+  supply_order_number: text('supply_order_number').notNull().unique(),
   supplier_id: integer('supplier_id').references(() => suppliers.id),
   order_date: text('order_date').notNull(),
   expected_date: text('expected_date'),

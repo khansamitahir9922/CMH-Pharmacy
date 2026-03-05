@@ -20,7 +20,10 @@ export function initDatabase(dbPath: string): BetterSQLite3Database<typeof schem
   createTables(sqlite)
   ensureMedicinesIndexes(sqlite)
   migrateMedicinesBarcode(sqlite)
+  migrateMedicinesIsControlled(sqlite)
+  migrateMedicinesGenericName(sqlite)
   migratePrescriptionsColumns(sqlite)
+  migratePurchaseOrdersSupplyOrderNumber(sqlite)
   seedDefaults(sqlite)
 
   db = drizzle(sqlite, { schema })
@@ -78,6 +81,7 @@ function createTables(conn: Database.Database): void {
     CREATE TABLE IF NOT EXISTS medicines (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       name            TEXT    NOT NULL,
+      generic_name    TEXT,
       category_id     INTEGER REFERENCES medicine_categories(id),
       batch_no        TEXT,
       barcode         TEXT,
@@ -130,9 +134,10 @@ function createTables(conn: Database.Database): void {
     );
 
     CREATE TABLE IF NOT EXISTS purchase_orders (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_number  TEXT    NOT NULL UNIQUE,
-      supplier_id   INTEGER REFERENCES suppliers(id),
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_number         TEXT    NOT NULL UNIQUE,
+      supply_order_number  TEXT    NOT NULL UNIQUE,
+      supplier_id          INTEGER REFERENCES suppliers(id),
       order_date    TEXT    NOT NULL,
       expected_date TEXT,
       received_date TEXT,
@@ -244,12 +249,35 @@ function migrateMedicinesBarcode(conn: Database.Database): void {
   conn.exec('ALTER TABLE medicines ADD COLUMN barcode TEXT')
 }
 
+/** Add is_controlled column to medicines if missing (for controlled drug register). */
+function migrateMedicinesIsControlled(conn: Database.Database): void {
+  const rows = conn.prepare("PRAGMA table_info(medicines)").all() as Array<{ name: string }>
+  if (rows.some((r) => r.name === 'is_controlled')) return
+  conn.exec('ALTER TABLE medicines ADD COLUMN is_controlled INTEGER NOT NULL DEFAULT 0')
+}
+
+/** Add generic_name column to medicines if missing (formula name of the medicine). */
+function migrateMedicinesGenericName(conn: Database.Database): void {
+  const rows = conn.prepare("PRAGMA table_info(medicines)").all() as Array<{ name: string }>
+  if (rows.some((r) => r.name === 'generic_name')) return
+  conn.exec('ALTER TABLE medicines ADD COLUMN generic_name TEXT')
+}
+
 /** Add medicines_prescribed and is_deleted to prescriptions if missing. */
 function migratePrescriptionsColumns(conn: Database.Database): void {
   const rows = conn.prepare("PRAGMA table_info(prescriptions)").all() as Array<{ name: string }>
   const names = new Set(rows.map((r) => r.name))
   if (!names.has('medicines_prescribed')) conn.exec('ALTER TABLE prescriptions ADD COLUMN medicines_prescribed TEXT')
   if (!names.has('is_deleted')) conn.exec('ALTER TABLE prescriptions ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0')
+}
+
+/** Add supply_order_number to purchase_orders; backfill from order_number for existing rows. */
+function migratePurchaseOrdersSupplyOrderNumber(conn: Database.Database): void {
+  const rows = conn.prepare("PRAGMA table_info(purchase_orders)").all() as Array<{ name: string }>
+  if (rows.some((r) => r.name === 'supply_order_number')) return
+  conn.exec('ALTER TABLE purchase_orders ADD COLUMN supply_order_number TEXT')
+  conn.exec('UPDATE purchase_orders SET supply_order_number = order_number WHERE supply_order_number IS NULL')
+  conn.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_orders_supply_order_number ON purchase_orders(supply_order_number)')
 }
 
 function seedDefaults(conn: Database.Database): void {

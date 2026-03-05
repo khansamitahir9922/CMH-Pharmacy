@@ -6,6 +6,7 @@ import {
   findByUsername,
   updateLastLogin
 } from '../../src/db/queries/auth'
+import { log as auditLog } from '../../src/db/queries/audit'
 
 /** Register authentication IPC handlers */
 export function registerAuthHandlers(): void {
@@ -29,12 +30,13 @@ export function registerAuthHandlers(): void {
         }
         const saltRounds = 10
         const passwordHash = bcrypt.hashSync(payload.password, saltRounds)
-        await createUser({
+        const { id: newUserId } = await createUser({
           fullName: payload.fullName.trim(),
           username: payload.username.trim(),
           passwordHash,
           role: 'admin'
         })
+        auditLog({ user_id: newUserId, action: 'First-time setup', details: 'Administrator account created' })
         return { success: true }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Setup failed.'
@@ -58,6 +60,7 @@ export function registerAuthHandlers(): void {
         const match = bcrypt.compareSync(payload.password, user.password_hash)
         if (!match) return null
         updateLastLogin(user.id)
+        auditLog({ user_id: user.id, action: 'Login', details: user.username })
         return {
           id: user.id,
           username: user.username,
@@ -70,7 +73,9 @@ export function registerAuthHandlers(): void {
     }
   )
 
-  ipcMain.handle('auth:logout', async (): Promise<void> => {
-    // No server-side session; client clears state
+  ipcMain.handle('auth:logout', async (_event, payload?: { userId?: number }): Promise<void> => {
+    if (payload?.userId != null) {
+      auditLog({ user_id: payload.userId, action: 'Logout', details: null })
+    }
   })
 }

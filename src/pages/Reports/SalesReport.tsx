@@ -3,6 +3,7 @@ import { Typography, DatePicker, Tabs, Table, Card, Row, Col, Button, Skeleton, 
 import { FileExcelOutlined, FilePdfOutlined, PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
+import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/utils/expiryStatus'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
@@ -58,7 +59,10 @@ function getRange(period: PeriodKey, customRange: [Dayjs, Dayjs] | null): { star
   }
 }
 
+const REPORT_NAME = 'Daily/Monthly Sales Report'
+
 export function SalesReport(): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [period, setPeriod] = useState<PeriodKey>('month')
   const [customRange, setCustomRange] = useState<[Dayjs, Dayjs] | null>(() => [
     dayjs().startOf('month'),
@@ -69,6 +73,10 @@ export function SalesReport(): React.ReactElement {
   const [rows, setRows] = useState<SalesReportRow[]>([])
 
   const range = getRange(period, customRange)
+
+  useEffect(() => {
+    window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
+  }, [])
 
   const fetchReport = (): void => {
     setLoading(true)

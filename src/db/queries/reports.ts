@@ -1,6 +1,6 @@
 import { eq, and, desc, sql, inArray } from 'drizzle-orm'
 import { getDb, getSqlite } from '../init'
-import { bills, billItems, medicines, medicineCategories, stock, stockTransactions, purchaseOrders, purchaseOrderItems, suppliers } from '../schema'
+import { bills, billItems, medicines, medicineCategories, stock, stockTransactions, purchaseOrders, purchaseOrderItems, suppliers, users } from '../schema'
 
 export interface SalesReportRow {
   date: string
@@ -22,6 +22,7 @@ export interface SalesReportSummary {
 export interface StockBalanceRow {
   medicine_id: number
   medicine_name: string
+  medicine_generic_name?: string | null
   category_name: string | null
   batch_no: string | null
   expiry_date: string | null
@@ -52,6 +53,7 @@ export interface PurchaseReportRow {
 export interface MedicineIssueRow {
   date: string
   medicine_name: string | null
+  medicine_generic_name?: string | null
   quantity: number
   type: string
   reason: string | null
@@ -143,6 +145,7 @@ export function getStockBalance(asOfDate: string, categoryId?: number | null): {
     .select({
       id: medicines.id,
       name: medicines.name,
+      generic_name: medicines.generic_name,
       batch_no: medicines.batch_no,
       expiry_date: medicines.expiry_date,
       unit_price_sell: medicines.unit_price_sell,
@@ -157,6 +160,7 @@ export function getStockBalance(asOfDate: string, categoryId?: number | null): {
     .all() as Array<{
     id: number
     name: string
+    generic_name: string | null
     batch_no: string | null
     expiry_date: string | null
     unit_price_sell: number
@@ -191,6 +195,7 @@ export function getStockBalance(asOfDate: string, categoryId?: number | null): {
     rows.push({
       medicine_id: m.id,
       medicine_name: m.name,
+      medicine_generic_name: m.generic_name ?? null,
       category_name: m.category_name ?? null,
       batch_no: m.batch_no ?? null,
       expiry_date: m.expiry_date ?? null,
@@ -234,6 +239,7 @@ export function getPurchasesReport(
     .select({
       id: purchaseOrders.id,
       order_number: purchaseOrders.order_number,
+      supply_order_number: purchaseOrders.supply_order_number,
       order_date: purchaseOrders.order_date,
       total_amount: purchaseOrders.total_amount,
       paid_amount: purchaseOrders.paid_amount,
@@ -247,6 +253,7 @@ export function getPurchasesReport(
     .all() as Array<{
     id: number
     order_number: string
+    supply_order_number: string
     order_date: string
     total_amount: number
     paid_amount: number
@@ -267,7 +274,8 @@ export function getPurchasesReport(
     if (o.status !== 'cancelled' && o.status !== 'received') totalOutstanding += balance
     return {
       id: o.id,
-      order_number: o.order_number,
+      order_number: o.supply_order_number ?? o.order_number,
+      supply_order_number: o.supply_order_number ?? o.order_number,
       supplier_name: o.supplier_name ?? null,
       order_date: o.order_date,
       items_count: counts.get(o.id) ?? 0,
@@ -310,7 +318,8 @@ export function getMedicineIssues(
       reason: stockTransactions.reason,
       reference_id: stockTransactions.reference_id,
       reference_type: stockTransactions.reference_type,
-      medicine_name: medicines.name
+      medicine_name: medicines.name,
+      medicine_generic_name: medicines.generic_name
     })
     .from(stockTransactions)
     .leftJoin(medicines, eq(stockTransactions.medicine_id, medicines.id))
@@ -324,14 +333,296 @@ export function getMedicineIssues(
     reference_id: number | null
     reference_type: string | null
     medicine_name: string | null
+    medicine_generic_name: string | null
   }>
 
   return rows.map((r) => ({
     date: (r.created_at ?? '').slice(0, 10),
     medicine_name: r.medicine_name ?? null,
+    medicine_generic_name: r.medicine_generic_name ?? null,
     quantity: r.quantity,
     type: r.reference_type === 'bill' ? 'Sale' : 'Manual',
     reason: r.reason ?? null,
     reference: r.reference_id != null ? `${r.reference_type ?? ''}-${r.reference_id}` : null
+  }))
+}
+
+/* ─────────────────────── ADJUSTMENT LOG REPORT ────────────────────── */
+
+export interface AdjustmentLogRow {
+  id: number
+  created_at: string
+  medicine_name: string | null
+  medicine_generic_name?: string | null
+  batch_no: string | null
+  transaction_type: string
+  quantity: number
+  reason: string | null
+  performer_name: string | null
+}
+
+export function getAdjustmentLog(
+  startDate: string,
+  endDate: string,
+  userId?: number | null
+): AdjustmentLogRow[] {
+  const db = getDb()
+  const start = String(startDate).slice(0, 10)
+  const end = String(endDate).slice(0, 10)
+  const conditions: unknown[] = [
+    sql`substr(${stockTransactions.created_at}, 1, 10) BETWEEN ${start} AND ${end}`
+  ]
+  conditions.push(eq(stockTransactions.transaction_type, 'adjust'))
+  if (userId != null && userId > 0) {
+    conditions.push(eq(stockTransactions.performed_by, userId))
+  }
+  const whereClause = and(...(conditions as never[]))
+  const rows = db
+    .select({
+      id: stockTransactions.id,
+      created_at: stockTransactions.created_at,
+      medicine_name: medicines.name,
+      medicine_generic_name: medicines.generic_name,
+      batch_no: medicines.batch_no,
+      transaction_type: stockTransactions.transaction_type,
+      quantity: stockTransactions.quantity,
+      reason: stockTransactions.reason,
+      performer_name: users.full_name
+    })
+    .from(stockTransactions)
+    .leftJoin(medicines, eq(stockTransactions.medicine_id, medicines.id))
+    .leftJoin(users, eq(stockTransactions.performed_by, users.id))
+    .where(whereClause)
+    .orderBy(desc(stockTransactions.created_at))
+    .all() as Array<{
+    id: number
+    created_at: string
+    medicine_name: string | null
+    medicine_generic_name: string | null
+    batch_no: string | null
+    transaction_type: string
+    quantity: number
+    reason: string | null
+    performer_name: string | null
+  }>
+  return rows.map((r) => ({
+    id: r.id,
+    created_at: r.created_at,
+    medicine_name: r.medicine_name ?? null,
+    medicine_generic_name: r.medicine_generic_name ?? null,
+    batch_no: r.batch_no ?? null,
+    transaction_type: r.transaction_type,
+    quantity: r.quantity,
+    reason: r.reason ?? null,
+    performer_name: r.performer_name ?? null
+  }))
+}
+
+/* ─────────────────────── STOCK VARIANCE REPORT ────────────────────── */
+
+export interface StockVarianceRow {
+  medicine_id: number
+  medicine_name: string | null
+  medicine_generic_name?: string | null
+  category_name: string | null
+  received: number
+  issued: number
+  variance: number
+}
+
+export function getStockVarianceReport(startDate: string, endDate: string): StockVarianceRow[] {
+  const db = getDb()
+  const start = String(startDate).slice(0, 10)
+  const end = String(endDate).slice(0, 10)
+  const inRows = db
+    .select({
+      medicine_id: stockTransactions.medicine_id,
+      quantity: stockTransactions.quantity
+    })
+    .from(stockTransactions)
+    .where(
+      and(
+        eq(stockTransactions.transaction_type, 'in'),
+        sql`substr(${stockTransactions.created_at}, 1, 10) BETWEEN ${start} AND ${end}`
+      )
+    )
+    .all()
+  const outRows = db
+    .select({
+      medicine_id: stockTransactions.medicine_id,
+      quantity: stockTransactions.quantity
+    })
+    .from(stockTransactions)
+    .where(
+      and(
+        eq(stockTransactions.transaction_type, 'out'),
+        sql`substr(${stockTransactions.created_at}, 1, 10) BETWEEN ${start} AND ${end}`
+      )
+    )
+    .all()
+  const inByMed = new Map<number, number>()
+  const outByMed = new Map<number, number>()
+  for (const r of inRows) {
+    inByMed.set(r.medicine_id, (inByMed.get(r.medicine_id) ?? 0) + (r.quantity ?? 0))
+  }
+  for (const r of outRows) {
+    outByMed.set(r.medicine_id, (outByMed.get(r.medicine_id) ?? 0) + (r.quantity ?? 0))
+  }
+  const allMedIds = new Set([...inByMed.keys(), ...outByMed.keys()])
+  const medList = db
+    .select({
+      id: medicines.id,
+      name: medicines.name,
+      generic_name: medicines.generic_name,
+      category_name: medicineCategories.name
+    })
+    .from(medicines)
+    .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
+    .where(eq(medicines.is_deleted, false))
+    .all() as Array<{ id: number; name: string; generic_name: string | null; category_name: string | null }>
+  const result: StockVarianceRow[] = []
+  for (const m of medList) {
+    const received = inByMed.get(m.id) ?? 0
+    const issued = outByMed.get(m.id) ?? 0
+    if (received === 0 && issued === 0 && !allMedIds.has(m.id)) continue
+    result.push({
+      medicine_id: m.id,
+      medicine_name: m.name,
+      medicine_generic_name: m.generic_name ?? null,
+      category_name: m.category_name ?? null,
+      received,
+      issued,
+      variance: received - issued
+    })
+  }
+  return result.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance))
+}
+
+/* ───────────────────── PURCHASE VS CONSUMPTION ────────────────────── */
+
+export interface PurchaseVsConsumptionRow {
+  medicine_id: number
+  medicine_name: string | null
+  medicine_generic_name?: string | null
+  category_name: string | null
+  purchase_qty: number
+  consumption_qty: number
+  difference: number
+}
+
+export function getPurchaseVsConsumptionReport(
+  startDate: string,
+  endDate: string
+): PurchaseVsConsumptionRow[] {
+  const db = getDb()
+  const start = String(startDate).slice(0, 10)
+  const end = String(endDate).slice(0, 10)
+  const inFromPO = db
+    .select({
+      medicine_id: stockTransactions.medicine_id,
+      quantity: stockTransactions.quantity
+    })
+    .from(stockTransactions)
+    .where(
+      and(
+        eq(stockTransactions.transaction_type, 'in'),
+        eq(stockTransactions.reference_type, 'purchase_order'),
+        sql`substr(${stockTransactions.created_at}, 1, 10) BETWEEN ${start} AND ${end}`
+      )
+    )
+    .all()
+  const outRows = db
+    .select({
+      medicine_id: stockTransactions.medicine_id,
+      quantity: stockTransactions.quantity
+    })
+    .from(stockTransactions)
+    .where(
+      and(
+        eq(stockTransactions.transaction_type, 'out'),
+        sql`substr(${stockTransactions.created_at}, 1, 10) BETWEEN ${start} AND ${end}`
+      )
+    )
+    .all()
+  const purchaseByMed = new Map<number, number>()
+  const consumptionByMed = new Map<number, number>()
+  for (const r of inFromPO) {
+    purchaseByMed.set(r.medicine_id, (purchaseByMed.get(r.medicine_id) ?? 0) + (r.quantity ?? 0))
+  }
+  for (const r of outRows) {
+    consumptionByMed.set(r.medicine_id, (consumptionByMed.get(r.medicine_id) ?? 0) + (r.quantity ?? 0))
+  }
+  const allMedIds = new Set([...purchaseByMed.keys(), ...consumptionByMed.keys()])
+  const medList = db
+    .select({
+      id: medicines.id,
+      name: medicines.name,
+      generic_name: medicines.generic_name,
+      category_name: medicineCategories.name
+    })
+    .from(medicines)
+    .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
+    .where(eq(medicines.is_deleted, false))
+    .all() as Array<{ id: number; name: string; generic_name: string | null; category_name: string | null }>
+  const result: PurchaseVsConsumptionRow[] = []
+  for (const m of medList) {
+    const purchase_qty = purchaseByMed.get(m.id) ?? 0
+    const consumption_qty = consumptionByMed.get(m.id) ?? 0
+    if (purchase_qty === 0 && consumption_qty === 0 && !allMedIds.has(m.id)) continue
+    result.push({
+      medicine_id: m.id,
+      medicine_name: m.name,
+      medicine_generic_name: m.generic_name ?? null,
+      category_name: m.category_name ?? null,
+      purchase_qty,
+      consumption_qty,
+      difference: purchase_qty - consumption_qty
+    })
+  }
+  return result.sort((a, b) => Math.abs(b.difference) - Math.abs(a.difference))
+}
+
+/* ───────────────────── CONTROLLED DRUG REGISTER ───────────────────── */
+
+export interface ControlledDrugRow {
+  id: number
+  name: string
+  category_name: string | null
+  batch_no: string | null
+  current_quantity: number
+  unit_price_sell: number
+}
+
+export function getControlledDrugRegister(): ControlledDrugRow[] {
+  const db = getDb()
+  const rows = db
+    .select({
+      id: medicines.id,
+      name: medicines.name,
+      category_name: medicineCategories.name,
+      batch_no: medicines.batch_no,
+      current_quantity: stock.current_quantity,
+      unit_price_sell: medicines.unit_price_sell
+    })
+    .from(medicines)
+    .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
+    .leftJoin(stock, eq(medicines.id, stock.medicine_id))
+    .where(and(eq(medicines.is_deleted, false), eq(medicines.is_controlled, true)))
+    .orderBy(medicines.name)
+    .all() as Array<{
+    id: number
+    name: string
+    category_name: string | null
+    batch_no: string | null
+    current_quantity: number
+    unit_price_sell: number
+  }>
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    category_name: r.category_name ?? null,
+    batch_no: r.batch_no ?? null,
+    current_quantity: r.current_quantity ?? 0,
+    unit_price_sell: r.unit_price_sell ?? 0
   }))
 }

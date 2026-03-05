@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Modal, Form, Input, InputNumber, DatePicker, Button, Upload, Select, notification } from 'antd'
 import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { UploadFile } from 'antd'
@@ -33,14 +33,28 @@ export function PrescriptionFormModal({ open, editId, onClose, onSuccess }: Pres
   const [recentBills, setRecentBills] = useState<{ id: number; bill_number: string }[]>([])
   const [imagePath, setImagePath] = useState<string | null>(null)
   const [fileList, setFileList] = useState<UploadFile[]>([])
+  const [previewDataUrl, setPreviewDataUrl] = useState<{ dataUrl: string; isPdf: boolean } | null>(null)
+  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null)
+  const previewObjectUrlRef = useRef<string | null>(null)
+  const previewDataUrlRef = useRef<{ dataUrl: string; isPdf: boolean } | null>(null)
 
   const isEdit = editId != null && editId > 0
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current)
+        previewObjectUrlRef.current = null
+      }
+      setPreviewObjectUrl(null)
+      previewDataUrlRef.current = null
+      return
+    }
     form.resetFields()
     setImagePath(null)
     setFileList([])
+    setPreviewDataUrl(null)
+    setPreviewObjectUrl(null)
     window.api
       .invoke<{ data: { id: number; bill_number: string }[] }>('billing:getBills', { page: 1, pageSize: 50 })
       .then((res) => setRecentBills(res?.data ?? []))
@@ -70,6 +84,10 @@ export function PrescriptionFormModal({ open, editId, onClose, onSuccess }: Pres
                   status: 'done'
                 }
               ])
+              window.api
+                .invoke<{ dataUrl: string; isPdf: boolean } | null>('prescriptions:getImageDataUrl', { imagePath: row.image_path })
+                .then((res) => res && setPreviewDataUrl(res))
+                .catch(() => {})
             }
           }
         })
@@ -122,19 +140,52 @@ export function PrescriptionFormModal({ open, editId, onClose, onSuccess }: Pres
       notification.error({ message: 'Only JPG, PNG, or PDF allowed.' })
       return false
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base64 = (reader.result as string) ?? ''
-      const ext = isPdf ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg'
-      window.api
-        .invoke<string>('prescriptions:saveImage', { base64, extension: ext })
-        .then((path) => {
-          setImagePath(path)
-          setFileList([{ uid: '1', name: file.name, status: 'done' }])
-        })
-        .catch(() => notification.error({ message: 'Failed to save image.' }))
+    const isPdfType = isPdf
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current)
+      previewObjectUrlRef.current = null
     }
-    reader.readAsDataURL(file)
+    setFileList([{ uid: '1', name: file.name, status: 'done' }])
+    if (isPdfType) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = (reader.result as string) ?? ''
+        if (!dataUrl) return
+        const payload = { dataUrl, isPdf: true }
+        previewDataUrlRef.current = payload
+        setPreviewDataUrl(payload)
+        setPreviewObjectUrl(null)
+        const base64 = dataUrl.replace(/^data:\w+\/\w+;base64,/, '')
+        window.api
+          .invoke<string>('prescriptions:saveImage', { base64, extension: 'pdf' })
+          .then((path) => setImagePath(path))
+          .catch(() => {
+            notification.error({ message: 'Failed to save PDF. Preview still shown.' })
+          })
+      }
+      reader.readAsDataURL(file)
+    } else {
+      const objectUrl = URL.createObjectURL(file)
+      previewObjectUrlRef.current = objectUrl
+      setPreviewObjectUrl(objectUrl)
+      const payload = { dataUrl: objectUrl, isPdf: false }
+      previewDataUrlRef.current = payload
+      setPreviewDataUrl(payload)
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = (reader.result as string) ?? ''
+        if (!dataUrl) return
+        const base64 = dataUrl.replace(/^data:\w+\/\w+;base64,/, '')
+        const ext = file.type === 'image/png' ? 'png' : 'jpg'
+        window.api
+          .invoke<string>('prescriptions:saveImage', { base64, extension: ext })
+          .then((path) => setImagePath(path))
+          .catch(() => {
+            notification.error({ message: 'Failed to save image. Preview still shown.' })
+          })
+      }
+      reader.readAsDataURL(file)
+    }
     return false
   }
 
@@ -167,15 +218,46 @@ export function PrescriptionFormModal({ open, editId, onClose, onSuccess }: Pres
           <Upload
             fileList={fileList}
             beforeUpload={beforeUpload}
-            onRemove={() => { setFileList([]); setImagePath(null) }}
+            onRemove={() => {
+              if (previewObjectUrlRef.current) {
+                URL.revokeObjectURL(previewObjectUrlRef.current)
+                previewObjectUrlRef.current = null
+              }
+              setPreviewObjectUrl(null)
+              previewDataUrlRef.current = null
+              setFileList([])
+              setImagePath(null)
+              setPreviewDataUrl(null)
+            }}
             accept=".jpg,.jpeg,.png,.pdf"
             maxCount={1}
           >
             <Button icon={<UploadOutlined />}>Upload JPG, PNG or PDF</Button>
           </Upload>
-          {imagePath && (
-            <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
-              <FileImageOutlined /> File saved
+          {(fileList.length > 0 || previewDataUrl || previewDataUrlRef.current) && (
+            <div style={{ marginTop: 12, border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', maxHeight: 280 }}>
+              <div style={{ padding: 8, background: '#fafafa', fontSize: 12, color: '#666' }}>
+                <FileImageOutlined /> Uploaded prescription — you can view what you uploaded below
+              </div>
+              {(() => {
+                const p = previewDataUrl ?? previewDataUrlRef.current
+                if (!p) return <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>Loading preview…</div>
+                return p.isPdf ? (
+                  <iframe
+                    key="pdf-preview"
+                    src={p.dataUrl}
+                    title="Prescription PDF"
+                    style={{ width: '100%', height: 260, border: 'none' }}
+                  />
+                ) : (
+                  <img
+                    key="img-preview"
+                    src={p.dataUrl}
+                    alt="Prescription preview"
+                    style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block', minHeight: 120 }}
+                  />
+                )
+              })()}
             </div>
           )}
         </Form.Item>

@@ -31,6 +31,7 @@ type OrderStatus = 'pending' | 'partial' | 'received' | 'cancelled'
 interface OrderRow {
   id: number
   order_number: string
+  supply_order_number?: string
   supplier_id: number | null
   supplier_name: string | null
   order_date: string
@@ -132,7 +133,7 @@ export function PurchaseOrdersPage(): React.ReactElement {
   const handleCancelOrder = (record: OrderRow): void => {
     Modal.confirm({
       title: 'Cancel this order?',
-      content: `Order ${record.order_number} will be marked as cancelled. You cannot receive stock or record payment for a cancelled order.`,
+      content: `Order ${record.supply_order_number ?? record.order_number} will be marked as cancelled. You cannot receive stock or record payment for a cancelled order.`,
       okText: 'Cancel order',
       okType: 'danger',
       cancelText: 'Keep order',
@@ -152,7 +153,7 @@ export function PurchaseOrdersPage(): React.ReactElement {
   }
 
   const columns: ColumnsType<OrderRow> = [
-    { title: 'Order#', dataIndex: 'order_number', key: 'order_number', width: 88, ellipsis: true },
+    { title: 'Supply Order#', dataIndex: 'supply_order_number', key: 'supply_order_number', width: 120, ellipsis: true, render: (_: unknown, r: OrderRow) => r.supply_order_number ?? r.order_number },
     { title: 'Supplier', dataIndex: 'supplier_name', key: 'supplier_name', width: 90, ellipsis: true, render: (v) => v ?? '—' },
     {
       title: 'Order Date',
@@ -320,7 +321,7 @@ function ViewOrderModal({ orderId, onClose }: { orderId: number; onClose: () => 
   const order = data?.order
   const items = data?.items ?? []
   return (
-    <Modal title={order ? `Order ${order.order_number}` : 'Order'} open onCancel={onClose} footer={null} width={640}>
+    <Modal title={order ? `Order ${order.supply_order_number ?? order.order_number}` : 'Order'} open onCancel={onClose} footer={null} width={640}>
       {order && (
         <div>
           <p><strong>Supplier:</strong> {order.supplier_name ?? '—'}</p>
@@ -347,15 +348,18 @@ function ViewOrderModal({ orderId, onClose }: { orderId: number; onClose: () => 
 function PrintOrder({ orderId, onClose }: { orderId: number; onClose: () => void }): React.ReactElement {
   const [html, setHtml] = useState<string>('')
   useEffect(() => {
-    window.api.invoke<{ order: OrderRow & { supplier_name: string | null }; items: { medicine_name: string | null; quantity_ordered: number; unit_price: number }[] } | null>('suppliers:getPurchaseOrderById', orderId).then((d) => {
+    window.api.invoke<{ order: OrderRow & { supplier_name: string | null }; items: { medicine_name: string | null; medicine_generic_name?: string | null; quantity_ordered: number; unit_price: number }[] } | null>('suppliers:getPurchaseOrderById', orderId).then((d) => {
       if (!d) return
       const o = d.order
-      const rows = d.items.map((i, idx) => `<tr><td>${idx + 1}</td><td>${i.medicine_name ?? ''}</td><td>${i.quantity_ordered}</td><td>${formatCurrency(i.unit_price)}</td><td>${formatCurrency(i.quantity_ordered * i.unit_price)}</td></tr>`).join('')
+      const orderLabel = o.supply_order_number ?? o.order_number
+      const medLabel = (i: { medicine_name: string | null; medicine_generic_name?: string | null }) =>
+        i.medicine_generic_name ? `${i.medicine_name ?? ''} (${i.medicine_generic_name})` : (i.medicine_name ?? '')
+      const rows = d.items.map((i, idx) => `<tr><td>${idx + 1}</td><td>${medLabel(i)}</td><td>${i.quantity_ordered}</td><td>${formatCurrency(i.unit_price)}</td><td>${formatCurrency(i.quantity_ordered * i.unit_price)}</td></tr>`).join('')
       setHtml(`
-        <!DOCTYPE html><html><head><title>PO ${o.order_number}</title>
+        <!DOCTYPE html><html><head><title>PO ${orderLabel}</title>
         <style>body{font-family:system-ui;padding:24px;max-width:800px;margin:0 auto} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #ddd;padding:8px;text-align:left} @media print{body{padding:0}.no-print{display:none}}</style></head><body>
         <h1>SKBZ/CMH RAWALAKOT PHARMACY</h1>
-        <p>Purchase Order: <strong>${o.order_number}</strong> &nbsp; Date: ${formatDate(o.order_date)}</p>
+        <p>Purchase Order: <strong>${orderLabel}</strong> &nbsp; Date: ${formatDate(o.order_date)}</p>
         <p>Supplier: <strong>${o.supplier_name ?? '—'}</strong></p>
         <table><thead><tr><th>#</th><th>Medicine</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>
         <p style="margin-top:24px"><strong>Grand Total: ${formatCurrency(o.total_amount)}</strong></p>

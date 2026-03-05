@@ -15,6 +15,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, BarcodeOutl
 import type { ColumnsType } from 'antd/es/table'
 import * as XLSX from 'xlsx'
 import { useMedicines, type MedicineWithStock, type MedicineFilters } from '@/hooks/useMedicines'
+import { useAuthStore } from '@/store/authStore'
 import { MedicineFormModal } from './MedicineFormModal'
 import { getExpiryStatus, getExpiryColor, formatCurrency, formatDate } from '@/utils/expiryStatus'
 
@@ -58,6 +59,7 @@ export function MedicineListPage(): React.ReactElement {
     sortOrder
   }
 
+  const { currentUser } = useAuthStore()
   const { medicines, total, loading, error, refetch } = useMedicines(filters)
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export function MedicineListPage(): React.ReactElement {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          await window.api.invoke('medicines:delete', record.id)
+          await window.api.invoke('medicines:delete', { id: record.id, userId: currentUser?.id })
           message.success('Medicine deleted.')
           refetch()
         } catch (err) {
@@ -113,12 +115,13 @@ export function MedicineListPage(): React.ReactElement {
       const rows = data.map((m) => ({
         'Sr#': 0,
         'Medicine Name': m.name,
+        'Generic Name': m.generic_name ?? '',
         Category: m.category_name ?? '',
         'Batch No': m.batch_no ?? '',
         'Expiry Date': m.expiry_date ? formatDate(m.expiry_date) : '',
         'Current Stock': m.current_quantity,
         'Min Stock': m.min_stock_level,
-        'Sell Price': formatCurrency(m.unit_price_sell)
+        'Sell Price': m.unit_price_sell != null && m.unit_price_sell > 0 ? formatCurrency(m.unit_price_sell) : ''
       }))
       rows.forEach((r, i) => (r['Sr#'] = i + 1))
       const ws = XLSX.utils.json_to_sheet(rows)
@@ -154,6 +157,12 @@ export function MedicineListPage(): React.ReactElement {
       key: 'name',
       sorter: true,
       sortOrder: sortBy === 'name' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : undefined
+    },
+    {
+      title: 'Generic Name',
+      dataIndex: 'generic_name',
+      key: 'generic_name',
+      render: (v: string | null | undefined) => v ?? '—'
     },
     {
       title: 'Category',
@@ -205,7 +214,7 @@ export function MedicineListPage(): React.ReactElement {
       title: 'Sell Price',
       dataIndex: 'unit_price_sell',
       key: 'unit_price_sell',
-      render: (paisa: number) => formatCurrency(paisa ?? 0)
+      render: (paisa: number) => (paisa != null && paisa > 0 ? formatCurrency(paisa) : '—')
     },
     {
       title: 'Actions',
@@ -240,7 +249,7 @@ export function MedicineListPage(): React.ReactElement {
 
       <Space wrap style={{ marginBottom: 16 }} align="center">
         <Input
-          placeholder="Search by name, batch no..."
+          placeholder="Search by medicine name, formula (generic) name, or batch..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           allowClear

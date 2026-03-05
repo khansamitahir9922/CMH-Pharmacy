@@ -26,6 +26,7 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "archiver": "^7.0.1",
+    "archiver-utils": "^5.0.2",
     "adm-zip": "^0.5.16"
   },
   "devDependencies": {

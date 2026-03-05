@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { Modal, Form, Input, Switch, Button, notification } from 'antd'
+import { useAuthStore } from '@/store/authStore'
 
 export interface SupplierFormValues {
   name: string
@@ -28,6 +29,7 @@ export function SupplierFormModal({
   onClose,
   onSuccess
 }: SupplierFormModalProps): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [form] = Form.useForm<SupplierFormValues>()
   const [saving, setSaving] = React.useState(false)
 
@@ -66,7 +68,8 @@ export function SupplierFormModal({
           address: values.address?.trim() || null,
           ntn_cnic: values.ntn_cnic?.trim() || null,
           notes: values.notes?.trim() || null,
-          is_active: values.is_active
+          is_active: values.is_active,
+          userId: currentUser?.id
         })
         notification.success({ message: 'Supplier updated.' })
       } else {
@@ -78,7 +81,8 @@ export function SupplierFormModal({
           address: values.address?.trim() || null,
           ntn_cnic: values.ntn_cnic?.trim() || null,
           notes: values.notes?.trim() || null,
-          is_active: values.is_active
+          is_active: values.is_active,
+          userId: currentUser?.id
         })
         notification.success({ message: 'Supplier added.' })
       }

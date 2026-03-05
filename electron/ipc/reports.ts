@@ -3,7 +3,11 @@ import {
   getSalesReport,
   getStockBalance,
   getPurchasesReport,
-  getMedicineIssues
+  getMedicineIssues,
+  getAdjustmentLog,
+  getStockVarianceReport,
+  getPurchaseVsConsumptionReport,
+  getControlledDrugRegister
 } from '../../src/db/queries/reports'
 
 export function registerReportsHandlers(): void {
@@ -42,4 +46,38 @@ export function registerReportsHandlers(): void {
       return getMedicineIssues(start, end, payload?.medicineId ?? null)
     }
   )
+
+  ipcMain.handle(
+    'reports:getAdjustmentLog',
+    async (_event, payload: { startDate: string; endDate: string; userId?: number | null }) => {
+      const start = String(payload?.startDate ?? '').slice(0, 10)
+      const end = String(payload?.endDate ?? '').slice(0, 10)
+      if (!start || !end) throw new Error('Start and end date are required.')
+      return getAdjustmentLog(start, end, payload?.userId ?? null)
+    }
+  )
+
+  ipcMain.handle(
+    'reports:getStockVariance',
+    async (_event, payload: { startDate: string; endDate: string }) => {
+      const start = String(payload?.startDate ?? '').slice(0, 10)
+      const end = String(payload?.endDate ?? '').slice(0, 10)
+      if (!start || !end) throw new Error('Start and end date are required.')
+      return getStockVarianceReport(start, end)
+    }
+  )
+
+  ipcMain.handle(
+    'reports:getPurchaseVsConsumption',
+    async (_event, payload: { startDate: string; endDate: string }) => {
+      const start = String(payload?.startDate ?? '').slice(0, 10)
+      const end = String(payload?.endDate ?? '').slice(0, 10)
+      if (!start || !end) throw new Error('Start and end date are required.')
+      return getPurchaseVsConsumptionReport(start, end)
+    }
+  )
+
+  ipcMain.handle('reports:getControlledDrugRegister', async () => {
+    return getControlledDrugRegister()
+  })
 }

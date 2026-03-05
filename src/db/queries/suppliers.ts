@@ -1,5 +1,5 @@
 import { eq, desc } from 'drizzle-orm'
-import { getDb } from '../init'
+import { getDb, getSqlite } from '../init'
 import { suppliers, purchaseOrders, purchaseOrderItems, medicines, stock, stockTransactions } from '../schema'
 import dayjs from 'dayjs'
 
@@ -140,6 +140,7 @@ export type OrderStatus = 'pending' | 'partial' | 'received' | 'cancelled'
 export interface PurchaseOrderRow {
   id: number
   order_number: string
+  supply_order_number: string
   supplier_id: number | null
   order_date: string
   expected_date: string | null
@@ -165,6 +166,7 @@ export interface PurchaseOrderItemRow {
   quantity_received: number
   unit_price: number
   medicine_name: string | null
+  medicine_generic_name?: string | null
 }
 
 export interface GetPurchaseOrdersFilters {
@@ -174,19 +176,6 @@ export interface GetPurchaseOrdersFilters {
   endDate?: string | null
   page?: number
   pageSize?: number
-}
-
-function generateOrderNumber(db: ReturnType<typeof getDb>): string {
-  const last = db
-    .select({ order_number: purchaseOrders.order_number })
-    .from(purchaseOrders)
-    .orderBy(desc(purchaseOrders.id))
-    .limit(1)
-    .all()[0]
-  if (!last?.order_number) return 'PO-00001'
-  const match = last.order_number.match(/PO-(\d+)/)
-  const num = match ? parseInt(match[1], 10) + 1 : 1
-  return `PO-${String(num).padStart(5, '0')}`
 }
 
 /**
@@ -199,6 +188,7 @@ export function getPurchaseOrders(filters: GetPurchaseOrdersFilters): { data: Pu
     .select({
       id: purchaseOrders.id,
       order_number: purchaseOrders.order_number,
+      supply_order_number: purchaseOrders.supply_order_number,
       supplier_id: purchaseOrders.supplier_id,
       order_date: purchaseOrders.order_date,
       expected_date: purchaseOrders.expected_date,
@@ -262,6 +252,7 @@ export function getPurchaseOrderById(orderId: number): {
     .select({
       id: purchaseOrders.id,
       order_number: purchaseOrders.order_number,
+      supply_order_number: purchaseOrders.supply_order_number,
       supplier_id: purchaseOrders.supplier_id,
       order_date: purchaseOrders.order_date,
       expected_date: purchaseOrders.expected_date,
@@ -288,19 +279,21 @@ export function getPurchaseOrderById(orderId: number): {
       quantity_ordered: purchaseOrderItems.quantity_ordered,
       quantity_received: purchaseOrderItems.quantity_received,
       unit_price: purchaseOrderItems.unit_price,
-      medicine_name: medicines.name
+      medicine_name: medicines.name,
+      medicine_generic_name: medicines.generic_name
     })
     .from(purchaseOrderItems)
     .leftJoin(medicines, eq(purchaseOrderItems.medicine_id, medicines.id))
     .where(eq(purchaseOrderItems.purchase_order_id, orderId))
-    .all() as PurchaseOrderItemRow[]
+    .all() as (PurchaseOrderItemRow & { medicine_generic_name: string | null })[]
   return {
     order: orderRow as PurchaseOrderRow & { supplier_name: string | null },
-    items: items.map((i) => ({ ...i, medicine_name: i.medicine_name ?? null }))
+    items: items.map((i) => ({ ...i, medicine_name: i.medicine_name ?? null, medicine_generic_name: i.medicine_generic_name ?? null }))
   }
 }
 
 export interface CreatePurchaseOrderInput {
+  supply_order_number: string
   supplier_id: number
   order_date: string
   expected_date: string | null
@@ -312,42 +305,46 @@ export interface CreatePurchaseOrderInput {
 /**
  * Create purchase order and items. total_amount computed from items (prices in paisa).
  */
-export function createPurchaseOrder(input: CreatePurchaseOrderInput): { id: number; order_number: string } {
-  const db = getDb()
+export function createPurchaseOrder(input: CreatePurchaseOrderInput): { id: number; order_number: string; supply_order_number: string } {
   if (!input.items?.length) throw new Error('Order must have at least one item.')
-  const orderNumber = generateOrderNumber(db)
+  const supplyOrderNumber = String(input.supply_order_number ?? '').trim()
+  if (!supplyOrderNumber) throw new Error('Supply order number is required.')
   let totalAmount = 0
   for (const item of input.items) {
     totalAmount += item.quantity_ordered * item.unit_price
   }
-  const result = db
-    .insert(purchaseOrders)
-    .values({
-      order_number: orderNumber,
-      supplier_id: input.supplier_id,
-      order_date: input.order_date,
-      expected_date: input.expected_date,
-      status: 'pending',
-      total_amount: totalAmount,
-      paid_amount: 0,
-      notes: input.notes,
-      created_by: input.created_by
-    })
-    .returning({ id: purchaseOrders.id, order_number: purchaseOrders.order_number })
-    .all()
-  const row = result[0]
-  if (!row) throw new Error('Failed to create purchase order')
-  const orderId = row.id
-  for (const item of input.items) {
-    db.insert(purchaseOrderItems).values({
-      purchase_order_id: orderId,
-      medicine_id: item.medicine_id,
-      quantity_ordered: item.quantity_ordered,
-      quantity_received: 0,
-      unit_price: item.unit_price
-    }).run()
-  }
-  return { id: orderId, order_number: row.order_number }
+  return getSqlite().transaction(() => {
+    const db = getDb()
+    const result = db
+      .insert(purchaseOrders)
+      .values({
+        order_number: supplyOrderNumber,
+        supply_order_number: supplyOrderNumber,
+        supplier_id: input.supplier_id,
+        order_date: input.order_date,
+        expected_date: input.expected_date,
+        status: 'pending',
+        total_amount: totalAmount,
+        paid_amount: 0,
+        notes: input.notes,
+        created_by: input.created_by
+      })
+      .returning({ id: purchaseOrders.id, order_number: purchaseOrders.order_number, supply_order_number: purchaseOrders.supply_order_number })
+      .all()
+    const row = result[0]
+    if (!row) throw new Error('Failed to create purchase order')
+    const orderId = row.id
+    for (const item of input.items) {
+      db.insert(purchaseOrderItems).values({
+        purchase_order_id: orderId,
+        medicine_id: item.medicine_id,
+        quantity_ordered: item.quantity_ordered,
+        quantity_received: 0,
+        unit_price: item.unit_price
+      }).run()
+    }
+    return { id: orderId, order_number: row.order_number, supply_order_number: row.supply_order_number }
+  })()
 }
 
 /**
@@ -377,42 +374,48 @@ export function recordPayment(orderId: number, amountPaid: number): void {
 
 /**
  * Mark order as received: set status, received_date, and create stock_transactions (type 'in') for each item.
- * Also updates stock table and quantity_received on items.
+ * Only adds the not-yet-received quantity per item (idempotent: safe to run again).
+ * Uses a transaction so all stock updates and status changes succeed or fail together.
  */
 export function markOrderReceived(orderId: number): void {
+  const sqlite = getSqlite()
   const db = getDb()
-  const order = db.select().from(purchaseOrders).where(eq(purchaseOrders.id, orderId)).limit(1).all()[0]
-  if (!order) throw new Error('Order not found.')
-  if (order.status === 'cancelled') throw new Error('Cannot receive a cancelled order.')
-  const now = dayjs().toISOString()
-  const receivedDate = now.slice(0, 10)
-  const items = db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchase_order_id, orderId)).all()
-  for (const item of items) {
-    const qty = item.quantity_ordered ?? 0
-    if (qty <= 0) continue
-    const stockRow = db.select().from(stock).where(eq(stock.medicine_id, item.medicine_id)).limit(1).all()[0]
-    if (stockRow) {
-      const newQty = (stockRow.current_quantity ?? 0) + qty
-      db.update(stock).set({ current_quantity: newQty, updated_at: now }).where(eq(stock.medicine_id, item.medicine_id)).run()
-    } else {
-      db.insert(stock).values({ medicine_id: item.medicine_id, current_quantity: qty, updated_at: now }).run()
+  sqlite.transaction(() => {
+    const order = db.select().from(purchaseOrders).where(eq(purchaseOrders.id, orderId)).limit(1).all()[0]
+    if (!order) throw new Error('Order not found.')
+    if (order.status === 'cancelled') throw new Error('Cannot receive a cancelled order.')
+    const now = dayjs().toISOString()
+    const receivedDate = now.slice(0, 10)
+    const items = db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchase_order_id, orderId)).all()
+    for (const item of items) {
+      const ordered = item.quantity_ordered ?? 0
+      const alreadyReceived = item.quantity_received ?? 0
+      const delta = Math.max(0, ordered - alreadyReceived)
+      if (delta <= 0) continue
+      const stockRow = db.select().from(stock).where(eq(stock.medicine_id, item.medicine_id)).limit(1).all()[0]
+      if (stockRow) {
+        const newQty = (stockRow.current_quantity ?? 0) + delta
+        db.update(stock).set({ current_quantity: newQty, updated_at: now }).where(eq(stock.medicine_id, item.medicine_id)).run()
+      } else {
+        db.insert(stock).values({ medicine_id: item.medicine_id, current_quantity: delta, updated_at: now }).run()
+      }
+      db.insert(stockTransactions).values({
+        medicine_id: item.medicine_id,
+        transaction_type: 'in',
+        quantity: delta,
+        reason: `Purchase Order ${order.order_number}`,
+        reference_id: orderId,
+        reference_type: 'purchase_order'
+      }).run()
+      db.update(purchaseOrderItems)
+        .set({ quantity_received: ordered })
+        .where(eq(purchaseOrderItems.id, item.id))
+        .run()
     }
-    db.insert(stockTransactions).values({
-      medicine_id: item.medicine_id,
-      transaction_type: 'in',
-      quantity: qty,
-      reason: `Purchase Order ${order.order_number}`,
-      reference_id: orderId,
-      reference_type: 'purchase_order'
-    }).run()
-    db.update(purchaseOrderItems)
-      .set({ quantity_received: qty })
-      .where(eq(purchaseOrderItems.id, item.id))
+    const newStatus: OrderStatus = (order.paid_amount ?? 0) >= (order.total_amount ?? 0) ? 'received' : 'partial'
+    db.update(purchaseOrders)
+      .set({ status: newStatus, received_date: receivedDate })
+      .where(eq(purchaseOrders.id, orderId))
       .run()
-  }
-  const newStatus: OrderStatus = (order.paid_amount ?? 0) >= (order.total_amount ?? 0) ? 'received' : 'partial'
-  db.update(purchaseOrders)
-    .set({ status: newStatus, received_date: receivedDate })
-    .where(eq(purchaseOrders.id, orderId))
-    .run()
+  })()
 }

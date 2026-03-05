@@ -10,6 +10,7 @@ import {
 } from '../../src/db/queries/users'
 import { findByUsername } from '../../src/db/queries/auth'
 import type { UserRole } from '../../src/db/queries/auth'
+import { log as auditLog } from '../../src/db/queries/audit'
 
 const SALT_ROUNDS = 10
 
@@ -22,7 +23,7 @@ export function registerUsersHandlers(): void {
     'users:create',
     async (
       _event,
-      payload: { full_name: string; username: string; password: string; role: UserRole }
+      payload: { full_name: string; username: string; password: string; role: UserRole; createdBy?: number }
     ): Promise<{ success: true; id: number } | { success: false; error: string }> => {
       try {
         if (!payload?.full_name?.trim() || !payload?.username?.trim() || !payload?.password) {
@@ -41,6 +42,13 @@ export function registerUsersHandlers(): void {
           username: payload.username.trim(),
           passwordHash,
           role: payload.role ?? 'dataentry'
+        })
+        auditLog({
+          user_id: payload.createdBy ?? null,
+          action: 'Create user',
+          table_name: 'users',
+          record_id: id,
+          details: payload.username.trim()
         })
         return { success: true, id }
       } catch (err) {
@@ -70,6 +78,13 @@ export function registerUsersHandlers(): void {
           }
         }
         updateUser(id, { role, is_active })
+        auditLog({
+          user_id: currentUserId ?? null,
+          action: 'Update user',
+          table_name: 'users',
+          record_id: id,
+          details: is_active === false ? 'Deactivated' : (role != null ? `Role: ${role}` : 'Updated')
+        })
         return { success: true }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Update failed.'
@@ -82,15 +97,22 @@ export function registerUsersHandlers(): void {
     'users:resetPassword',
     async (
       _event,
-      payload: { userId: number; newPassword: string }
+      payload: { userId: number; newPassword: string; currentUserId?: number }
     ): Promise<{ success: true } | { success: false; error: string }> => {
       try {
-        const { userId, newPassword } = payload ?? {}
+        const { userId, newPassword, currentUserId } = payload ?? {}
         if (userId == null || !newPassword || newPassword.length < 4) {
           return { success: false, error: 'User ID and new password (min 4 characters) are required.' }
         }
         const hash = bcrypt.hashSync(newPassword, SALT_ROUNDS)
         resetPassword(userId, hash)
+        auditLog({
+          user_id: currentUserId ?? null,
+          action: 'Reset password',
+          table_name: 'users',
+          record_id: userId,
+          details: null
+        })
         return { success: true }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Password reset failed.'

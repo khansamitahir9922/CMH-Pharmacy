@@ -1,5 +1,5 @@
 import { eq, and, like, desc } from 'drizzle-orm'
-import { getDb } from '../init'
+import { getDb, getSqlite } from '../init'
 import { medicines, medicineCategories, stock, stockTransactions, users } from '../schema'
 import dayjs from 'dayjs'
 
@@ -14,6 +14,7 @@ export interface InventorySummary {
 export interface MedicineStockRow {
   id: number
   name: string
+  generic_name?: string | null
   category_name: string | null
   batch_no: string | null
   expiry_date: string | null
@@ -48,6 +49,7 @@ export interface TransactionRow {
   created_at: string
   performed_by: number | null
   medicine_name: string | null
+  medicine_generic_name?: string | null
   batch_no: string | null
   performer_name: string | null
 }
@@ -105,6 +107,7 @@ export function getLowStock(limit = 10): MedicineStockRow[] {
     .select({
       id: medicines.id,
       name: medicines.name,
+      generic_name: medicines.generic_name,
       batch_no: medicines.batch_no,
       expiry_date: medicines.expiry_date,
       min_stock_level: medicines.min_stock_level,
@@ -115,12 +118,13 @@ export function getLowStock(limit = 10): MedicineStockRow[] {
     .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
     .leftJoin(stock, eq(medicines.id, stock.medicine_id))
     .where(eq(medicines.is_deleted, false))
-    .all() as { id: number; name: string; batch_no: string | null; expiry_date: string | null; min_stock_level: number; category_name: string | null; current_quantity: number | null }[]
+    .all() as { id: number; name: string; generic_name: string | null; batch_no: string | null; expiry_date: string | null; min_stock_level: number; category_name: string | null; current_quantity: number | null }[]
 
   const low = rows.filter((r) => (r.current_quantity ?? 0) < (r.min_stock_level ?? 0))
   return low.slice(0, limit).map((r) => ({
     id: r.id,
     name: r.name,
+    generic_name: r.generic_name ?? null,
     category_name: r.category_name ?? null,
     batch_no: r.batch_no ?? null,
     expiry_date: r.expiry_date ?? null,
@@ -206,39 +210,41 @@ export function getExpired(limit = 100): MedicineStockRow[] {
 }
 
 /**
- * Record a stock transaction and update stock. For 'out' and 'adjust', quantity is subtracted.
+ * Record a stock transaction and update stock (in one transaction). For 'out' and 'adjust', quantity is subtracted.
  * Validates that 'out' does not reduce stock below 0.
  */
 export function recordTransaction(input: RecordTransactionInput): void {
-  const db = getDb()
   const { medicineId, type, quantity, reason, date, notes, performedBy } = input
   if (quantity <= 0) throw new Error('Quantity must be greater than 0.')
 
-  const stockRow = db.select().from(stock).where(eq(stock.medicine_id, medicineId)).limit(1).all()[0]
-  if (!stockRow) throw new Error('Medicine stock record not found.')
+  getSqlite().transaction(() => {
+    const db = getDb()
+    const stockRow = db.select().from(stock).where(eq(stock.medicine_id, medicineId)).limit(1).all()[0]
+    if (!stockRow) throw new Error('Medicine stock record not found.')
 
-  const currentQty = stockRow.current_quantity ?? 0
-  const delta = type === 'in' ? quantity : -quantity
-  if (type !== 'in' && currentQty + delta < 0) {
-    throw new Error(`Insufficient stock. Current: ${currentQty}, requested: ${quantity}.`)
-  }
+    const currentQty = stockRow.current_quantity ?? 0
+    const delta = type === 'in' ? quantity : -quantity
+    if (type !== 'in' && currentQty + delta < 0) {
+      throw new Error(`Insufficient stock. Current: ${currentQty}, requested: ${quantity}.`)
+    }
 
-  const newQty = currentQty + delta
-  const now = dayjs().toISOString()
+    const newQty = currentQty + delta
+    const now = dayjs().toISOString()
 
-  db.insert(stockTransactions).values({
-    medicine_id: medicineId,
-    transaction_type: type,
-    quantity,
-    reason: reason || null,
-    performed_by: performedBy,
-    created_at: date ? dayjs(date).toISOString() : now
-  }).run()
+    db.insert(stockTransactions).values({
+      medicine_id: medicineId,
+      transaction_type: type,
+      quantity,
+      reason: reason || null,
+      performed_by: performedBy,
+      created_at: date ? dayjs(date).toISOString() : now
+    }).run()
 
-  db.update(stock)
-    .set({ current_quantity: newQty, updated_at: now })
-    .where(eq(stock.medicine_id, medicineId))
-    .run()
+    db.update(stock)
+      .set({ current_quantity: newQty, updated_at: now })
+      .where(eq(stock.medicine_id, medicineId))
+      .run()
+  })()
 }
 
 /**
@@ -270,6 +276,7 @@ export function getTransactions(filters: GetTransactionsFilters): { data: Transa
       created_at: stockTransactions.created_at,
       performed_by: stockTransactions.performed_by,
       medicine_name: medicines.name,
+      medicine_generic_name: medicines.generic_name,
       batch_no: medicines.batch_no,
       performer_name: users.full_name
     })
@@ -301,6 +308,7 @@ export function getTransactions(filters: GetTransactionsFilters): { data: Transa
     created_at: r.created_at,
     performed_by: r.performed_by ?? null,
     medicine_name: r.medicine_name ?? null,
+    medicine_generic_name: (r as { medicine_generic_name?: string | null }).medicine_generic_name ?? null,
     batch_no: r.batch_no ?? null,
     performer_name: r.performer_name ?? null
   }))
@@ -313,6 +321,7 @@ export type ExpiryReportStatus = 'expired' | 'warning30' | 'warning90' | 'ok'
 export interface ExpiryReportRow {
   id: number
   name: string
+  generic_name?: string | null
   category_name: string | null
   batch_no: string | null
   expiry_date: string | null
@@ -339,6 +348,7 @@ export function getExpiryReport(): {
     .select({
       id: medicines.id,
       name: medicines.name,
+      generic_name: medicines.generic_name,
       batch_no: medicines.batch_no,
       expiry_date: medicines.expiry_date,
       category_name: medicineCategories.name,
@@ -348,11 +358,12 @@ export function getExpiryReport(): {
     .leftJoin(medicineCategories, eq(medicines.category_id, medicineCategories.id))
     .leftJoin(stock, eq(medicines.id, stock.medicine_id))
     .where(eq(medicines.is_deleted, false))
-    .all() as { id: number; name: string; batch_no: string | null; expiry_date: string | null; category_name: string | null; current_quantity: number | null }[]
+    .all() as { id: number; name: string; generic_name: string | null; batch_no: string | null; expiry_date: string | null; category_name: string | null; current_quantity: number | null }[]
 
   const toRow = (r: (typeof rows)[0], status: ExpiryReportStatus, daysLeft: number | null): ExpiryReportRow => ({
     id: r.id,
     name: r.name,
+    generic_name: r.generic_name ?? null,
     category_name: r.category_name ?? null,
     batch_no: r.batch_no ?? null,
     expiry_date: r.expiry_date ?? null,

@@ -3,6 +3,7 @@ import { Typography, DatePicker, Select, Table, Button, Skeleton } from 'antd'
 import { FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
+import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/utils/expiryStatus'
 import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
@@ -18,7 +19,10 @@ interface PurchaseReportRow {
   status: string
 }
 
+const REPORT_NAME = 'Purchase & Supply Report'
+
 export function PurchaseReport(): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf('month'),
     dayjs().endOf('month')
@@ -28,6 +32,10 @@ export function PurchaseReport(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<PurchaseReportRow[]>([])
   const [totalOutstanding, setTotalOutstanding] = useState(0)
+
+  useEffect(() => {
+    window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     window.api
@@ -63,7 +71,7 @@ export function PurchaseReport(): React.ReactElement {
   }, [start, end, supplierId])
 
   const columns: ColumnsType<PurchaseReportRow> = [
-    { title: 'Order#', dataIndex: 'order_number', key: 'order_number', width: 120 },
+    { title: 'Supply Order#', dataIndex: 'order_number', key: 'order_number', width: 120 },
     { title: 'Supplier', dataIndex: 'supplier_name', key: 'supplier_name', render: (v) => v ?? '—' },
     { title: 'Date', dataIndex: 'order_date', key: 'order_date', width: 110, render: (v) => (v ? String(v).slice(0, 10) : '—') },
     { title: 'Items', dataIndex: 'items_count', key: 'items_count', width: 80, align: 'right' },
@@ -75,7 +83,7 @@ export function PurchaseReport(): React.ReactElement {
 
   const handleExportExcel = (): void => {
     const data = rows.map((r) => ({
-      'Order#': r.order_number,
+      'Supply Order#': r.order_number,
       Supplier: r.supplier_name ?? '',
       Date: r.order_date,
       Items: r.items_count,
@@ -86,14 +94,14 @@ export function PurchaseReport(): React.ReactElement {
     }))
     exportToExcel(
       data,
-      ['Order#', 'Supplier', 'Date', 'Items', 'Total', 'Paid', 'Balance', 'Status'],
+      ['Supply Order#', 'Supplier', 'Date', 'Items', 'Total', 'Paid', 'Balance', 'Status'],
       `purchase-report-${start}-${end}.xlsx`
     )
   }
 
   const handleExportPdf = (): void => {
     const data = rows.map((r) => ({
-      'Order#': r.order_number,
+      'Supply Order#': r.order_number,
       Supplier: r.supplier_name ?? '',
       Date: r.order_date,
       Items: r.items_count,
@@ -104,7 +112,7 @@ export function PurchaseReport(): React.ReactElement {
     }))
     exportToPDF(
       data,
-      ['Order#', 'Supplier', 'Date', 'Items', 'Total', 'Paid', 'Balance', 'Status'],
+      ['Supply Order#', 'Supplier', 'Date', 'Items', 'Total', 'Paid', 'Balance', 'Status'],
       `Purchase Report (${start} to ${end})`,
       `purchase-report-${start}-${end}.pdf`
     )

@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 export interface MedicineRow {
   id: number
   name: string
+  generic_name: string | null
   category_id: number | null
   batch_no: string | null
   barcode: string | null
@@ -20,6 +21,7 @@ export interface MedicineRow {
   min_stock_level: number
   shelf_location: string | null
   notes: string | null
+  is_controlled?: boolean
   is_deleted: number
   created_at: string
   updated_at: string
@@ -67,13 +69,20 @@ export function getAll(filters: GetAllFilters): { data: MedicineWithStock[]; tot
   const conditions = [
     eq(medicines.is_deleted, false),
     ...(categoryId != null && categoryId > 0 ? [eq(medicines.category_id, categoryId)] : []),
-    ...(searchTerm !== '%%' ? [or(like(medicines.name, searchTerm), like(medicines.batch_no, searchTerm))!] : [])
+    ...(searchTerm !== '%%'
+      ? [or(
+          like(medicines.name, searchTerm),
+          like(medicines.generic_name, searchTerm),
+          like(medicines.batch_no, searchTerm)
+        )!]
+      : [])
   ]
   const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions)
   const query = db
     .select({
       id: medicines.id,
       name: medicines.name,
+      generic_name: medicines.generic_name,
       category_id: medicines.category_id,
       batch_no: medicines.batch_no,
       mfg_date: medicines.mfg_date,
@@ -145,9 +154,10 @@ export function getAll(filters: GetAllFilters): { data: MedicineWithStock[]; tot
   })
 
   const data = sorted.slice(offset, offset + pageSize).map((row) => {
-    const r = row as unknown as { is_deleted?: boolean; [k: string]: unknown }
+    const r = row as unknown as { is_deleted?: boolean; generic_name?: string | null; [k: string]: unknown }
     return {
       ...row,
+      generic_name: r.generic_name ?? row.generic_name ?? null,
       is_deleted: r.is_deleted ? 1 : 0,
       current_quantity: row.current_quantity ?? 0,
       category_name: row.category_name ?? null
@@ -166,6 +176,7 @@ export function getById(id: number): MedicineWithStock | null {
     .select({
       id: medicines.id,
       name: medicines.name,
+      generic_name: medicines.generic_name,
       category_id: medicines.category_id,
       batch_no: medicines.batch_no,
       barcode: medicines.barcode,
@@ -180,6 +191,7 @@ export function getById(id: number): MedicineWithStock | null {
       min_stock_level: medicines.min_stock_level,
       shelf_location: medicines.shelf_location,
       notes: medicines.notes,
+      is_controlled: medicines.is_controlled,
       is_deleted: medicines.is_deleted,
       created_at: medicines.created_at,
       updated_at: medicines.updated_at,
@@ -204,6 +216,7 @@ export function getById(id: number): MedicineWithStock | null {
 
 export interface CreateMedicineInput {
   name: string
+  generic_name: string | null
   category_id: number | null
   batch_no: string
   barcode: string | null
@@ -218,56 +231,61 @@ export interface CreateMedicineInput {
   unit_price_sell: number
   min_stock_level: number
   notes: string | null
+  is_controlled?: boolean
 }
 
 /**
- * Create medicine, stock row, and opening stock transaction.
+ * Create medicine, stock row, and opening stock transaction (all in one transaction).
  */
 export function create(input: CreateMedicineInput): { id: number } {
-  const db = getDb()
   const now = dayjs().toISOString()
-  const result = db
-    .insert(medicines)
-    .values({
-      name: input.name,
-      category_id: input.category_id,
-      batch_no: input.batch_no,
-      barcode: input.barcode ?? null,
-      mfg_date: input.mfg_date,
-      expiry_date: input.expiry_date,
-      received_date: input.received_date,
-      order_date: input.order_date,
-      firm_name: input.firm_name,
-      shelf_location: input.shelf_location,
-      opening_stock: input.opening_stock,
-      unit_price_buy: input.unit_price_buy,
-      unit_price_sell: input.unit_price_sell,
-      min_stock_level: input.min_stock_level,
-      notes: input.notes,
-      is_deleted: false,
+  return getSqlite().transaction(() => {
+    const db = getDb()
+    const result = db
+      .insert(medicines)
+      .values({
+        name: input.name,
+        generic_name: input.generic_name ?? null,
+        category_id: input.category_id,
+        batch_no: input.batch_no,
+        barcode: input.barcode ?? null,
+        mfg_date: input.mfg_date,
+        expiry_date: input.expiry_date,
+        received_date: input.received_date,
+        order_date: input.order_date,
+        firm_name: input.firm_name,
+        shelf_location: input.shelf_location,
+        opening_stock: input.opening_stock,
+        unit_price_buy: input.unit_price_buy,
+        unit_price_sell: input.unit_price_sell,
+        min_stock_level: input.min_stock_level,
+        notes: input.notes,
+        is_controlled: input.is_controlled ?? false,
+        is_deleted: false,
+        updated_at: now
+      })
+      .returning({ id: medicines.id })
+      .all()
+    const row = result[0]
+    if (!row) throw new Error('Failed to create medicine')
+    const medicineId = row.id
+
+    db.insert(stock).values({
+      medicine_id: medicineId,
+      current_quantity: input.opening_stock,
       updated_at: now
-    })
-    .returning({ id: medicines.id })
-    .all()
-  const row = result[0]
-  if (!row) throw new Error('Failed to create medicine')
-  const medicineId = row.id
+    }).run()
 
-  db.insert(stock).values({
-    medicine_id: medicineId,
-    current_quantity: input.opening_stock,
-    updated_at: now
-  }).run()
+    db.insert(stockTransactions).values({
+      medicine_id: medicineId,
+      transaction_type: 'in',
+      quantity: input.opening_stock,
+      reason: 'Opening Stock',
+      created_at: now
+    }).run()
 
-  db.insert(stockTransactions).values({
-    medicine_id: medicineId,
-    transaction_type: 'in',
-    quantity: input.opening_stock,
-    reason: 'Opening Stock',
-    created_at: now
-  }).run()
-
-  return { id: medicineId }
+    return { id: medicineId }
+  })()
 }
 
 export interface UpdateMedicineInput extends Partial<CreateMedicineInput> {
@@ -372,6 +390,7 @@ export function seedDummyMedicines(count = 10_000): number {
 const searchSelect = {
   id: medicines.id,
   name: medicines.name,
+  generic_name: medicines.generic_name,
   category_id: medicines.category_id,
   batch_no: medicines.batch_no,
   barcode: medicines.barcode,
@@ -404,9 +423,9 @@ function mapSearchRow(r: Record<string, unknown>): MedicineWithStock {
 }
 
 /**
- * Search medicines by name, batch, or barcode for POS (and barcode scan).
+ * Search medicines by name, generic (formula) name, batch, or barcode for POS and elsewhere.
  * - Exact barcode or batch match (when term length >= 5) returns that single match.
- * - Otherwise fuzzy search on name, batch_no, barcode (top 10).
+ * - Otherwise fuzzy search on name, generic_name, batch_no, barcode (top 10).
  */
 export function search(term: string): MedicineWithStock[] {
   const trimmed = String(term).trim()
@@ -442,6 +461,7 @@ export function search(term: string): MedicineWithStock[] {
         eq(medicines.is_deleted, false),
         or(
           like(medicines.name, searchTerm),
+          like(medicines.generic_name, searchTerm),
           like(medicines.batch_no, searchTerm),
           like(medicines.barcode, searchTerm)
         )!
