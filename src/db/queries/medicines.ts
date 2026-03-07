@@ -321,6 +321,211 @@ export function getCategories(): { id: number; name: string }[] {
   return db.select({ id: medicineCategories.id, name: medicineCategories.name }).from(medicineCategories).all()
 }
 
+export interface ImportExcelResult {
+  imported: number
+  failed: number
+  errors: { row: number; message: string }[]
+}
+
+const EXCEL_COLUMN_ALIASES: Record<string, string> = {
+  name: 'name',
+  'medicine name': 'name',
+  medicine: 'name',
+  'generic name': 'generic_name',
+  formula: 'generic_name',
+  generic: 'generic_name',
+  category: 'category',
+  'batch no': 'batch_no',
+  batch: 'batch_no',
+  barcode: 'barcode',
+  'mfg date': 'mfg_date',
+  'manufacturing date': 'mfg_date',
+  'expiry date': 'expiry_date',
+  expiry: 'expiry_date',
+  'opening stock': 'opening_stock',
+  stock: 'opening_stock',
+  quantity: 'opening_stock',
+  qty: 'opening_stock',
+  'buy price': 'unit_price_buy',
+  'purchase price': 'unit_price_buy',
+  cost: 'unit_price_buy',
+  'sell price': 'unit_price_sell',
+  price: 'unit_price_sell',
+  mrp: 'unit_price_sell',
+  'min stock': 'min_stock_level',
+  'min stock level': 'min_stock_level',
+  manufacturer: 'firm_name',
+  firm: 'firm_name',
+  company: 'firm_name',
+  'shelf location': 'shelf_location',
+  shelf: 'shelf_location',
+  notes: 'notes'
+}
+
+function normalizeHeader(h: string): string {
+  return String(h ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function parseExcelDate(val: unknown): string {
+  if (val == null || val === '') return ''
+  const s = String(val).trim()
+  if (!s) return ''
+  const d = dayjs(s, ['DD/MM/YYYY', 'YYYY-MM-DD', 'D/M/YYYY', 'YYYY/MM/DD'], true)
+  if (d.isValid()) return d.format('YYYY-MM-DD')
+  const num = Number(s)
+  if (Number.isFinite(num) && num > 0) {
+    const fromExcel = dayjs((num - 25569) * 86400 * 1000)
+    if (fromExcel.isValid()) return fromExcel.format('YYYY-MM-DD')
+  }
+  return ''
+}
+
+function priceToPaisa(val: unknown): number {
+  if (val == null || val === '') return 0
+  const n = Number(String(val).replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? Math.round(n * 100) : 0
+}
+
+const MAX_IMPORT_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_IMPORT_ROWS = 5000
+
+/**
+ * Import medicines from an Excel file buffer. First row = headers.
+ * Returns count imported, count failed, and per-row errors.
+ * Rejects files > 10 MB or > 5000 data rows.
+ */
+export async function importFromExcel(buffer: Buffer): Promise<ImportExcelResult> {
+  if (buffer.length > MAX_IMPORT_SIZE_BYTES) {
+    return { imported: 0, failed: 0, errors: [{ row: 0, message: `File too large. Maximum size is ${MAX_IMPORT_SIZE_BYTES / 1024 / 1024} MB.` }] }
+  }
+  const XLSX = await import('xlsx')
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false })
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+  if (!firstSheet) return { imported: 0, failed: 0, errors: [{ row: 0, message: 'No sheet found in Excel file.' }] }
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { header: 0, defval: '' })
+  if (!rows.length) return { imported: 0, failed: 0, errors: [{ row: 0, message: 'Excel file has no data rows.' }] }
+  if (rows.length > MAX_IMPORT_ROWS) {
+    return { imported: 0, failed: rows.length, errors: [{ row: 0, message: `Too many rows. Maximum is ${MAX_IMPORT_ROWS}.` }] }
+  }
+
+  const headers = Object.keys(rows[0] ?? {}) as string[]
+  const colMap: Record<string, string> = {}
+  headers.forEach((h) => {
+    const key = EXCEL_COLUMN_ALIASES[normalizeHeader(h)]
+    if (key) colMap[key] = h
+  })
+  const getVal = (row: Record<string, unknown>, key: string): unknown => {
+    const header = colMap[key]
+    if (!header) return ''
+    return row[header] ?? ''
+  }
+  const getStr = (row: Record<string, unknown>, key: string): string =>
+    String(getVal(row, key) ?? '').trim()
+  const categories = getCategories()
+  const categoryByName = new Map(categories.map((c) => [c.name.toLowerCase().trim(), c.id]))
+
+  const toCreate: CreateMedicineInput[] = []
+  const errors: { row: number; message: string }[] = []
+  const dataRows = rows as Record<string, unknown>[]
+
+  for (let r = 0; r < dataRows.length; r++) {
+    const row = dataRows[r]
+    const excelRow = r + 2
+    const name = getStr(row, 'name')
+    if (!name) {
+      errors.push({ row: excelRow, message: 'Medicine name is required.' })
+      continue
+    }
+    const categoryStr = getStr(row, 'category')
+    const category_id = categoryStr ? (categoryByName.get(categoryStr.toLowerCase()) ?? null) : null
+    const batch_no = getStr(row, 'batch_no') || `IMPORT-${excelRow}`
+    const mfg_date = parseExcelDate(getVal(row, 'mfg_date'))
+    const expiry_date = parseExcelDate(getVal(row, 'expiry_date'))
+    const todayStr = dayjs().format('YYYY-MM-DD')
+    const opening_stock = Math.max(0, Math.trunc(Number(getVal(row, 'opening_stock')) || 0))
+    const unit_price_buy = priceToPaisa(getVal(row, 'unit_price_buy'))
+    const unit_price_sell = priceToPaisa(getVal(row, 'unit_price_sell'))
+    const min_stock_level = Math.max(1, Math.trunc(Number(getVal(row, 'min_stock_level')) || 10))
+    if (unit_price_buy > 0 && unit_price_sell > 0 && unit_price_sell < unit_price_buy) {
+      errors.push({ row: excelRow, message: `Sell price must be >= buy price for "${name}".` })
+      continue
+    }
+    toCreate.push({
+      name,
+      generic_name: getStr(row, 'generic_name') || null,
+      category_id,
+      batch_no,
+      barcode: getStr(row, 'barcode') || null,
+      mfg_date: mfg_date || todayStr,
+      expiry_date: expiry_date || todayStr,
+      received_date: todayStr,
+      order_date: null,
+      firm_name: getStr(row, 'firm_name') || '—',
+      shelf_location: getStr(row, 'shelf_location') || null,
+      opening_stock,
+      unit_price_buy,
+      unit_price_sell,
+      min_stock_level,
+      notes: getStr(row, 'notes') || null,
+      is_controlled: false
+    })
+  }
+
+  if (toCreate.length === 0) {
+    return { imported: 0, failed: dataRows.length, errors }
+  }
+
+  let imported = 0
+  getSqlite().transaction(() => {
+    const db = getDb()
+    const now = dayjs().toISOString()
+    for (const input of toCreate) {
+      try {
+        const result = db
+          .insert(medicines)
+          .values({
+            name: input.name,
+            generic_name: input.generic_name ?? null,
+            category_id: input.category_id,
+            batch_no: input.batch_no,
+            barcode: input.barcode ?? null,
+            mfg_date: input.mfg_date,
+            expiry_date: input.expiry_date,
+            received_date: input.received_date,
+            order_date: input.order_date,
+            firm_name: input.firm_name,
+            shelf_location: input.shelf_location,
+            opening_stock: input.opening_stock,
+            unit_price_buy: input.unit_price_buy,
+            unit_price_sell: input.unit_price_sell,
+            min_stock_level: input.min_stock_level,
+            notes: input.notes,
+            is_controlled: input.is_controlled ?? false,
+            is_deleted: false,
+            updated_at: now
+          })
+          .returning({ id: medicines.id })
+          .all()
+        const row = result[0]
+        if (!row) continue
+        db.insert(stock).values({ medicine_id: row.id, current_quantity: input.opening_stock, updated_at: now }).run()
+        db.insert(stockTransactions).values({
+          medicine_id: row.id,
+          transaction_type: 'in',
+          quantity: input.opening_stock,
+          reason: 'Opening Stock',
+          created_at: now
+        }).run()
+        imported++
+      } catch {
+        errors.push({ row: imported + errors.length + 2, message: `Failed to insert: ${input.name}.` })
+      }
+    }
+  })()
+
+  return { imported, failed: errors.length, errors }
+}
+
 const DUMMY_FIRMS = ['Sun Pharma', 'Cipla', 'Dr. Reddy\'s', 'Lupin', 'Zydus', 'Torrent', 'Cadila', 'Glenmark', 'Dummy Labs', 'Test Mfg Co']
 const DUMMY_SHELVES = ['A-1', 'A-2', 'B-1', 'B-2', 'C-1', 'C-2', 'D-1', 'D-2']
 

@@ -9,9 +9,10 @@ import {
   Skeleton,
   Empty,
   Modal,
-  message
+  message,
+  notification
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, BarcodeOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, BarcodeOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import * as XLSX from 'xlsx'
 import { useMedicines, type MedicineWithStock, type MedicineFilters } from '@/hooks/useMedicines'
@@ -47,6 +48,7 @@ export function MedicineListPage(): React.ReactElement {
   const [addWithBarcode, setAddWithBarcode] = useState<string | null>(null)
   const [barcodeScanInput, setBarcodeScanInput] = useState('')
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
+  const [importing, setImporting] = useState(false)
 
   const filters: MedicineFilters = {
     search,
@@ -131,6 +133,91 @@ export function MedicineListPage(): React.ReactElement {
       message.success('Export completed.')
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Export failed.')
+    }
+  }
+
+  const handleDownloadTemplate = (): void => {
+    const headers = [
+      'Name',
+      'Generic Name',
+      'Category',
+      'Batch No',
+      'Barcode',
+      'Mfg Date',
+      'Expiry Date',
+      'Opening Stock',
+      'Buy Price (Rs)',
+      'Sell Price (Rs)',
+      'Min Stock Level',
+      'Manufacturer',
+      'Shelf Location',
+      'Notes'
+    ]
+    const sample = [
+      'Paracetamol 500mg',
+      'Paracetamol',
+      'Tablet',
+      'BATCH-001',
+      '',
+      '2024-01-01',
+      '2026-12-31',
+      100,
+      5,
+      8,
+      10,
+      'Example Pharma',
+      'A-1',
+      ''
+    ]
+    const ws = XLSX.utils.aoa_to_sheet([headers, sample])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Medicines')
+    XLSX.writeFile(wb, 'medicines-import-template.xlsx')
+    message.success('Template downloaded. Fill in your data and use Import from Excel.')
+  }
+
+  const handleImport = async (): Promise<void> => {
+    setImporting(true)
+    try {
+      const result = await window.api.invoke<{
+        imported: number
+        failed: number
+        errors: { row: number; message: string }[]
+        canceled?: boolean
+      }>('medicines:importFromExcel')
+      if (result?.canceled) {
+        setImporting(false)
+        return
+      }
+      const imported = result?.imported ?? 0
+      const failed = result?.failed ?? 0
+      const errors = result?.errors ?? []
+      refetch()
+      if (imported > 0) {
+        notification.success({
+          message: 'Import completed',
+          description: `${imported} medicine(s) imported.${failed > 0 ? ` ${failed} row(s) had errors.` : ''}`
+        })
+      }
+      if (errors.length > 0) {
+        const list = errors.slice(0, 10).map((e) => `Row ${e.row}: ${e.message}`).join('\n')
+        Modal.warning({
+          title: failed > 0 ? 'Some rows could not be imported' : 'Import details',
+          content: (
+            <pre style={{ fontSize: 12, maxHeight: 300, overflow: 'auto' }}>
+              {list}
+              {errors.length > 10 ? `\n... and ${errors.length - 10} more` : ''}
+            </pre>
+          )
+        })
+      }
+      if (imported === 0 && failed > 0 && !result?.canceled) {
+        message.warning('No medicines were imported. Check the Excel format and column names.')
+      }
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Import failed.')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -298,6 +385,12 @@ export function MedicineListPage(): React.ReactElement {
         />
         <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
           Reset Filters
+        </Button>
+        <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
+          Download template
+        </Button>
+        <Button icon={<UploadOutlined />} onClick={handleImport} loading={importing}>
+          Import from Excel
         </Button>
         <Button onClick={handleExport}>Export to Excel</Button>
       </Space>

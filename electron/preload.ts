@@ -1,12 +1,93 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+const ALLOWED_CHANNELS = new Set([
+  'app:restart',
+  'auth:checkFirstRun',
+  'auth:setup',
+  'auth:login',
+  'auth:logout',
+  'audit:getLogs',
+  'audit:logReportView',
+  'audit:getUserActivitySummary',
+  'audit:logAction',
+  'backup:create',
+  'backup:restore',
+  'backup:getLogs',
+  'backup:selectFolder',
+  'backup:setAutoBackup',
+  'backup:showRestoreFileDialog',
+  'backup:getDbFileSize',
+  'billing:createBill',
+  'billing:getBills',
+  'billing:getBillById',
+  'billing:voidBill',
+  'billing:getDailySummary',
+  'billing:getAll',
+  'billing:getById',
+  'billing:create',
+  'billing:void',
+  'billing:getNextBillNumber',
+  'export:saveExcel',
+  'export:savePdf',
+  'inventory:getSummary',
+  'inventory:getLowStock',
+  'inventory:getExpiringSoon',
+  'inventory:getExpired',
+  'inventory:recordTransaction',
+  'inventory:getTransactions',
+  'inventory:getExpiryReport',
+  'medicines:getAll',
+  'medicines:getById',
+  'medicines:create',
+  'medicines:update',
+  'medicines:delete',
+  'medicines:getCategories',
+  'medicines:search',
+  'medicines:exportData',
+  'medicines:seedDummy',
+  'medicines:importFromExcel',
+  'prescriptions:getAll',
+  'prescriptions:getById',
+  'prescriptions:create',
+  'prescriptions:update',
+  'prescriptions:delete',
+  'prescriptions:saveImage',
+  'prescriptions:getImageDataUrl',
+  'reports:getSales',
+  'reports:getStockBalance',
+  'reports:getPurchases',
+  'reports:getMedicineIssues',
+  'reports:getAdjustmentLog',
+  'reports:getStockVariance',
+  'reports:getPurchaseVsConsumption',
+  'reports:getControlledDrugRegister',
+  'settings:getAll',
+  'settings:getByKey',
+  'settings:get',
+  'settings:update',
+  'settings:updateAll',
+  'suppliers:getAll',
+  'suppliers:getById',
+  'suppliers:create',
+  'suppliers:update',
+  'suppliers:delete',
+  'suppliers:getPurchaseOrders',
+  'suppliers:getPurchaseOrderById',
+  'suppliers:createPurchaseOrder',
+  'suppliers:updateOrderStatus',
+  'suppliers:recordPayment',
+  'suppliers:markOrderReceived',
+  'users:getAll',
+  'users:create',
+  'users:update',
+  'users:resetPassword'
+])
+
 contextBridge.exposeInMainWorld('api', {
-  /**
-   * Invoke an IPC handler on the main process.
-   * @param channel - IPC channel in 'module:action' format
-   * @param args - Arguments to pass to the handler
-   */
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> => {
+    if (!ALLOWED_CHANNELS.has(channel)) {
+      return Promise.reject(new Error(`IPC channel "${channel}" is not allowed`))
+    }
     return ipcRenderer.invoke(channel, ...args)
   }
 })

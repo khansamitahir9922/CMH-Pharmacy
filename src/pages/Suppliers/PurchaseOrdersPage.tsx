@@ -26,6 +26,15 @@ import { useSearchParams } from 'react-router-dom'
 import { PurchaseOrderModal } from './PurchaseOrderModal'
 import { RecordPaymentModal } from './RecordPaymentModal'
 
+function escapeHtml(s: string | null | undefined): string {
+  if (s == null) return '—'
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 type OrderStatus = 'pending' | 'partial' | 'received' | 'cancelled'
 
 interface OrderRow {
@@ -351,16 +360,16 @@ function PrintOrder({ orderId, onClose }: { orderId: number; onClose: () => void
     window.api.invoke<{ order: OrderRow & { supplier_name: string | null }; items: { medicine_name: string | null; medicine_generic_name?: string | null; quantity_ordered: number; unit_price: number }[] } | null>('suppliers:getPurchaseOrderById', orderId).then((d) => {
       if (!d) return
       const o = d.order
-      const orderLabel = o.supply_order_number ?? o.order_number
+      const orderLabel = escapeHtml(o.supply_order_number ?? o.order_number)
       const medLabel = (i: { medicine_name: string | null; medicine_generic_name?: string | null }) =>
-        i.medicine_generic_name ? `${i.medicine_name ?? ''} (${i.medicine_generic_name})` : (i.medicine_name ?? '')
+        escapeHtml(i.medicine_generic_name ? `${i.medicine_name ?? ''} (${i.medicine_generic_name})` : (i.medicine_name ?? ''))
       const rows = d.items.map((i, idx) => `<tr><td>${idx + 1}</td><td>${medLabel(i)}</td><td>${i.quantity_ordered}</td><td>${formatCurrency(i.unit_price)}</td><td>${formatCurrency(i.quantity_ordered * i.unit_price)}</td></tr>`).join('')
       setHtml(`
         <!DOCTYPE html><html><head><title>PO ${orderLabel}</title>
         <style>body{font-family:system-ui;padding:24px;max-width:800px;margin:0 auto} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #ddd;padding:8px;text-align:left} @media print{body{padding:0}.no-print{display:none}}</style></head><body>
         <h1>SKBZ/CMH RAWALAKOT PHARMACY</h1>
-        <p>Purchase Order: <strong>${orderLabel}</strong> &nbsp; Date: ${formatDate(o.order_date)}</p>
-        <p>Supplier: <strong>${o.supplier_name ?? '—'}</strong></p>
+        <p>Purchase Order: <strong>${orderLabel}</strong> &nbsp; Date: ${escapeHtml(formatDate(o.order_date))}</p>
+        <p>Supplier: <strong>${escapeHtml(o.supplier_name ?? '—')}</strong></p>
         <table><thead><tr><th>#</th><th>Medicine</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>
         <p style="margin-top:24px"><strong>Grand Total: ${formatCurrency(o.total_amount)}</strong></p>
         <p style="margin-top:32px">Signature: _________________________</p>

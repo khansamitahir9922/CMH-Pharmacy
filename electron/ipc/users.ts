@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import * as bcrypt from 'bcryptjs'
+import { requireSession } from './auth'
 import {
   getAll,
   createUser,
@@ -26,6 +27,7 @@ export function registerUsersHandlers(): void {
       payload: { full_name: string; username: string; password: string; role: UserRole; createdBy?: number }
     ): Promise<{ success: true; id: number } | { success: false; error: string }> => {
       try {
+        requireSession()
         if (!payload?.full_name?.trim() || !payload?.username?.trim() || !payload?.password) {
           return { success: false, error: 'Full name, username and password are required.' }
         }
@@ -65,6 +67,7 @@ export function registerUsersHandlers(): void {
       payload: { id: number; currentUserId: number; role?: UserRole; is_active?: boolean }
     ): Promise<{ success: true } | { success: false; error: string }> => {
       try {
+        requireSession()
         const { id, currentUserId, role, is_active } = payload ?? {}
         if (id == null) return { success: false, error: 'User ID is required.' }
         if (id === currentUserId && is_active === false) {
@@ -100,6 +103,7 @@ export function registerUsersHandlers(): void {
       payload: { userId: number; newPassword: string; currentUserId?: number }
     ): Promise<{ success: true } | { success: false; error: string }> => {
       try {
+        requireSession()
         const { userId, newPassword, currentUserId } = payload ?? {}
         if (userId == null || !newPassword || newPassword.length < 4) {
           return { success: false, error: 'User ID and new password (min 4 characters) are required.' }

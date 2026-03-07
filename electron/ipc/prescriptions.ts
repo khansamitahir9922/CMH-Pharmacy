@@ -1,5 +1,5 @@
 import { ipcMain, app } from 'electron'
-import { join } from 'path'
+import { join, resolve, relative } from 'path'
 import { mkdirSync, writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs'
 import {
   getAll,
@@ -46,14 +46,20 @@ function deleteImageFile(imagePath: string | null): void {
 
 /**
  * Read prescription image/PDF from disk and return as data URL for display in renderer.
+ * Validates path is under prescriptions dir to prevent path traversal.
  */
 function getImageDataUrl(imagePath: string | null): { dataUrl: string; isPdf: boolean } | null {
   if (!imagePath || !String(imagePath).trim()) return null
   try {
-    if (!existsSync(imagePath)) return null
-    const buf = readFileSync(imagePath)
+    const dir = getPrescriptionsDir()
+    const resolved = resolve(imagePath)
+    const dirResolved = resolve(dir)
+    const rel = relative(dirResolved, resolved)
+    if (rel.startsWith('..')) return null
+    if (!existsSync(resolved)) return null
+    const buf = readFileSync(resolved)
     const base64 = buf.toString('base64')
-    const ext = imagePath.toLowerCase().slice(-4)
+    const ext = resolved.toLowerCase().slice(-4)
     const isPdf = ext === '.pdf'
     const mime = isPdf ? 'application/pdf' : ext === '.png' ? 'image/png' : 'image/jpeg'
     return { dataUrl: `data:${mime};base64,${base64}`, isPdf }

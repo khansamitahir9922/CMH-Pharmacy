@@ -1,8 +1,9 @@
 import { ipcMain, app, dialog } from 'electron'
 import { createWriteStream, existsSync, copyFileSync, unlinkSync, mkdirSync, statSync } from 'fs'
-import { join, dirname } from 'path'
+import { join, dirname, resolve, relative } from 'path'
 import archiver from 'archiver'
 import AdmZip from 'adm-zip'
+import { requireSession } from './auth'
 import { getDbPath, closeDatabase } from '../../src/db/init'
 import { getAll as getSettings, update as updateSetting } from '../../src/db/queries/settings'
 import { getLogs as getBackupLogs, logBackup } from '../../src/db/queries/backup'
@@ -24,6 +25,7 @@ export function registerBackupHandlers(): void {
     'backup:create',
     async (_event, payload?: { userId?: number }): Promise<{ success: true; filePath: string; fileSize: number } | { success: false; error: string }> => {
     try {
+      requireSession()
       const settings = getSettings()
       let backupDir = (settings.backup_folder ?? '').trim()
       if (!backupDir) {
@@ -69,6 +71,7 @@ export function registerBackupHandlers(): void {
       const zipPath = typeof zipPathOrPayload === 'string' ? zipPathOrPayload : zipPathOrPayload?.zipPath
       const userId = typeof zipPathOrPayload === 'object' && zipPathOrPayload != null && 'userId' in zipPathOrPayload ? zipPathOrPayload.userId : undefined
       try {
+        requireSession()
         if (!zipPath || !existsSync(zipPath)) {
           return { success: false, error: 'Backup file not found.' }
         }
@@ -84,7 +87,12 @@ export function registerBackupHandlers(): void {
         mkdirSync(tempDir, { recursive: true })
         zip.extractEntryTo(dbEntry, tempDir, false, true)
         const extractedName = dbEntry.entryName.replace(/^.*[\\/]/, '')
-        const extractedPath = join(tempDir, extractedName)
+        const extractedPath = resolve(join(tempDir, extractedName))
+        const tempDirResolved = resolve(tempDir)
+        const rel = relative(tempDirResolved, extractedPath)
+        if (rel.startsWith('..')) {
+          return { success: false, error: 'Invalid backup: extracted path outside expected directory.' }
+        }
         if (!existsSync(extractedPath)) {
           return { success: false, error: 'Extraction failed.' }
         }

@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { readFile } from 'fs/promises'
 import {
   getAll,
   getById,
@@ -9,6 +10,7 @@ import {
   search,
   exportData,
   seedDummyMedicines,
+  importFromExcel,
   type CreateMedicineInput,
   type UpdateMedicineInput
 } from '../../src/db/queries/medicines'
@@ -126,4 +128,21 @@ export function registerMedicinesHandlers(): void {
     const n = Math.min(Math.max(1, Number(count) || 10_000), 50_000)
     return seedDummyMedicines(n)
   })
+
+  ipcMain.handle(
+    'medicines:importFromExcel',
+    async (event): Promise<{ imported: number; failed: number; errors: { row: number; message: string }[]; canceled?: boolean }> => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const result = await dialog.showOpenDialog(win!, {
+        title: 'Select Excel file to import',
+        filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }],
+        properties: ['openFile']
+      })
+      if (result.canceled || !result.filePaths.length) {
+        return { imported: 0, failed: 0, errors: [], canceled: true }
+      }
+      const buffer = await readFile(result.filePaths[0])
+      return importFromExcel(buffer)
+    }
+  )
 }

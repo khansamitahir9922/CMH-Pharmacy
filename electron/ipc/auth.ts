@@ -8,6 +8,53 @@ import {
 } from '../../src/db/queries/auth'
 import { log as auditLog } from '../../src/db/queries/audit'
 
+let currentSession: { userId: number; role: string } | null = null
+
+const MAX_LOGIN_ATTEMPTS = 5
+const LOCKOUT_MS = 5 * 60 * 1000
+const WINDOW_MS = 60 * 1000
+const loginAttempts = new Map<string, { count: number; firstAt: number }>()
+
+function checkLoginRateLimit(username: string): boolean {
+  const key = username.toLowerCase().trim()
+  const now = Date.now()
+  const entry = loginAttempts.get(key)
+  if (!entry) return true
+  if (now - entry.firstAt > WINDOW_MS) {
+    loginAttempts.delete(key)
+    return true
+  }
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    if (now - entry.firstAt < LOCKOUT_MS) return false
+    loginAttempts.delete(key)
+    return true
+  }
+  return true
+}
+
+function recordLoginAttempt(username: string, success: boolean): void {
+  const key = username.toLowerCase().trim()
+  const now = Date.now()
+  if (success) {
+    loginAttempts.delete(key)
+    return
+  }
+  const entry = loginAttempts.get(key) ?? { count: 0, firstAt: now }
+  if (now - entry.firstAt > WINDOW_MS) {
+    loginAttempts.set(key, { count: 1, firstAt: now })
+  } else {
+    entry.count++
+  }
+}
+
+export function getSession(): { userId: number; role: string } | null {
+  return currentSession
+}
+
+export function requireSession(): void {
+  if (!currentSession) throw new Error('Not authenticated.')
+}
+
 /** Register authentication IPC handlers */
 export function registerAuthHandlers(): void {
   ipcMain.handle('auth:checkFirstRun', async (): Promise<boolean> => {
@@ -55,12 +102,24 @@ export function registerAuthHandlers(): void {
         if (!payload?.username?.trim() || !payload?.password) {
           return null
         }
-        const user = findByUsername(payload.username.trim())
-        if (!user) return null
+        const username = payload.username.trim()
+        if (!checkLoginRateLimit(username)) {
+          return null
+        }
+        const user = findByUsername(username)
+        if (!user) {
+          recordLoginAttempt(username, false)
+          return null
+        }
         const match = bcrypt.compareSync(payload.password, user.password_hash)
-        if (!match) return null
+        if (!match) {
+          recordLoginAttempt(username, false)
+          return null
+        }
+        recordLoginAttempt(username, true)
         updateLastLogin(user.id)
         auditLog({ user_id: user.id, action: 'Login', details: user.username })
+        currentSession = { userId: user.id, role: user.role }
         return {
           id: user.id,
           username: user.username,
@@ -74,6 +133,7 @@ export function registerAuthHandlers(): void {
   )
 
   ipcMain.handle('auth:logout', async (_event, payload?: { userId?: number }): Promise<void> => {
+    currentSession = null
     if (payload?.userId != null) {
       auditLog({ user_id: payload.userId, action: 'Logout', details: null })
     }
