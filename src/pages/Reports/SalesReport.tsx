@@ -59,7 +59,7 @@ function getRange(period: PeriodKey, customRange: [Dayjs, Dayjs] | null): { star
   }
 }
 
-const REPORT_NAME = 'Daily/Monthly Sales Report'
+const REPORT_NAME = 'Daily/Monthly Report'
 
 export function SalesReport(): React.ReactElement {
   const { currentUser } = useAuthStore()
@@ -189,7 +189,7 @@ export function SalesReport(): React.ReactElement {
   return (
     <div>
       <Typography.Title level={4} style={{ marginBottom: 16 }}>
-        Daily/Monthly Sales Report
+        Daily/Monthly Report
       </Typography.Title>
 
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>

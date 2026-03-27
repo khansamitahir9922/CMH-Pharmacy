@@ -197,13 +197,19 @@ export function BillReceiptModal(props: {
         <Divider style={{ margin: '10px 0' }} />
 
         <div style={{ fontSize: 12 }}>
-          <div><strong>Payment:</strong> {(bill?.payment_mode ?? 'cash').toUpperCase()}</div>
-          {bill?.payment_mode === 'cash' ? (
+          {((bill?.total_amount ?? 0) === 0 && (bill?.amount_received ?? 0) === 0) ? (
+            <div><strong>Issuance:</strong> Free of cost (record only)</div>
+          ) : (
             <>
-              <div><strong>Received:</strong> {formatCurrency(bill.amount_received ?? 0)}</div>
-              <div><strong>Change Due:</strong> {formatCurrency(bill.change_due ?? 0)}</div>
+              <div><strong>Payment:</strong> {(bill?.payment_mode ?? 'cash').toUpperCase()}</div>
+              {bill?.payment_mode === 'cash' ? (
+                <>
+                  <div><strong>Received:</strong> {formatCurrency(bill.amount_received ?? 0)}</div>
+                  <div><strong>Change Due:</strong> {formatCurrency(bill.change_due ?? 0)}</div>
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
         </div>
 
         {bill?.is_voided ? (

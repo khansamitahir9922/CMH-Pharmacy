@@ -1,19 +1,13 @@
-import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
 /**
- * Export data to Excel and trigger save via Electron dialog.
+ * Export data to Excel via main process (avoids renderer binary/base64 issues).
+ * Sends data + headers as JSON; main process builds the xlsx and writes the file.
  */
 export function exportToExcel(data: Record<string, unknown>[], headers: string[], filename: string): void {
-  const ws = XLSX.utils.json_to_sheet(data, { header: headers })
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
-  const arr = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array
-  let binary = ''
-  for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i])
-  const base64 = typeof btoa !== 'undefined' ? btoa(binary) : ''
-  window.api.invoke('export:saveExcel', { filename: filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`, base64 }).catch(() => {})
+  const name = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`
+  window.api.invoke('export:saveExcel', { filename: name, data, headers }).catch(() => {})
 }
 
 /**

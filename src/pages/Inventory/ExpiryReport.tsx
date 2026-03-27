@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Typography, Tabs, Table, Button, Skeleton } from 'antd'
+import React, { useState, useEffect, useRef } from 'react'
+import { Typography, Tabs, Table, Button, Skeleton, notification } from 'antd'
 import { PrinterOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useAuthStore } from '@/store/authStore'
@@ -9,6 +9,7 @@ import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 interface ExpiryReportRow {
   id: number
   name: string
+  generic_name?: string | null
   category_name: string | null
   batch_no: string | null
   expiry_date: string | null
@@ -39,6 +40,7 @@ export function ExpiryReport(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<ExpiryReportData | null>(null)
   const [activeTab, setActiveTab] = useState<string>('expired')
+  const exportDataRef = useRef<{ rows: Record<string, unknown>[]; headers: readonly string[] }>({ rows: [], headers: [] })
 
   useEffect(() => {
     window.api.invoke('audit:logReportView', { reportName: REPORT_NAME, userId: currentUser?.id }).catch(() => {})
@@ -57,38 +59,41 @@ export function ExpiryReport(): React.ReactElement {
     fetchReport()
   }, [])
 
-  const getExportRows = (): Record<string, unknown>[] => {
-    if (!data) return []
-    const rows: Record<string, unknown>[] = []
-    TAB_KEYS.forEach((key) => {
-      const list = data[key]
-      list.forEach((r) => {
-        rows.push({
-          Status: TAB_LABELS[key],
-          'Medicine Name': r.generic_name ? `${r.name} (${r.generic_name})` : r.name,
-          Category: r.category_name ?? '',
-          'Batch No': r.batch_no ?? '',
-          'Expiry Date': formatDate(r.expiry_date),
-          'Days Left': r.days_left ?? '—',
-          'Current Stock': r.current_quantity
-        })
-      })
-    })
-    return rows
-  }
+  const HEADERS = ['Status', 'Medicine Name', 'Category', 'Batch No', 'Expiry Date', 'Days Left', 'Current Stock'] as const
+
+  const rowToExport = (r: ExpiryReportRow, statusLabel: string): Record<string, unknown> => ({
+    Status: statusLabel,
+    'Medicine Name': r.generic_name ? `${r.name} (${r.generic_name})` : r.name,
+    Category: r.category_name ?? '',
+    'Batch No': r.batch_no ?? '',
+    'Expiry Date': formatDate(r.expiry_date),
+    'Days Left': r.days_left ?? '—',
+    'Current Stock': r.current_quantity
+  })
+
+  const d = data ?? { expired: [], warning30: [], warning90: [], ok: [] }
+  const currentKey = TAB_KEYS.includes(activeTab as (typeof TAB_KEYS)[number]) ? (activeTab as (typeof TAB_KEYS)[number]) : 'expired'
+  const currentList = d[currentKey]
+  const currentLabel = TAB_LABELS[currentKey]
+  const exportRows = currentList.map((r) => rowToExport(r, currentLabel))
+  exportDataRef.current = { rows: exportRows, headers: HEADERS }
 
   const handleExportExcel = (): void => {
-    const rows = getExportRows()
-    if (rows.length === 0) return
-    const headers = ['Status', 'Medicine Name', 'Category', 'Batch No', 'Expiry Date', 'Days Left', 'Current Stock']
-    exportToExcel(rows, headers, `expiry-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    const { rows, headers } = exportDataRef.current
+    if (rows.length === 0) {
+      notification.warning({ message: 'No data to export', description: 'There are no medicines in the current tab to export.' })
+      return
+    }
+    exportToExcel(rows, [...headers], `expiry-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   const handleExportPdf = (): void => {
-    const rows = getExportRows()
-    if (rows.length === 0) return
-    const headers = ['Status', 'Medicine Name', 'Category', 'Batch No', 'Expiry Date', 'Days Left', 'Current Stock']
-    exportToPDF(rows, headers, 'Expiry Report', `expiry-report-${new Date().toISOString().slice(0, 10)}.pdf`)
+    const { rows, headers } = exportDataRef.current
+    if (rows.length === 0) {
+      notification.warning({ message: 'No data to export', description: 'There are no medicines in the current tab to export.' })
+      return
+    }
+    exportToPDF(rows, [...headers], 'Expiry Report', `expiry-report-${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
   const handlePrint = (): void => {
@@ -129,8 +134,6 @@ export function ExpiryReport(): React.ReactElement {
       </div>
     )
   }
-
-  const d = data ?? { expired: [], warning30: [], warning90: [], ok: [] }
 
   return (
     <div style={{ padding: 24 }}>

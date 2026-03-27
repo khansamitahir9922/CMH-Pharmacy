@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Typography, Card, Row, Col, Table, Spin, Button, Skeleton } from 'antd'
-import { ReloadOutlined, ShoppingCartOutlined, PlusOutlined, InboxOutlined } from '@ant-design/icons'
+import { Typography, Card, Row, Col, Table, Button, Skeleton } from 'antd'
+import {
+  ReloadOutlined,
+  ShoppingCartOutlined,
+  PlusOutlined,
+  InboxOutlined,
+  BarChartOutlined,
+  MedicineBoxOutlined,
+  WarningOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useNavigate, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/store/authStore'
-import { formatCurrency } from '@/utils/expiryStatus'
-
-interface DailySummary {
-  date: string
-  totalSales: number
-  billCount: number
-}
+import { formatCurrency, formatDate, getExpiryStatus } from '@/utils/expiryStatus'
 
 interface InventorySummary {
   totalMedicines: number
@@ -33,6 +36,17 @@ interface BillListRow {
 interface LowStockRow {
   id: number
   name: string
+  batch_no: string | null
+  expiry_date: string | null
+  current_quantity: number
+  min_stock_level: number
+}
+
+interface ExpiringSoonRow {
+  id: number
+  name: string
+  batch_no: string | null
+  expiry_date: string | null
   current_quantity: number
   min_stock_level: number
 }
@@ -43,54 +57,18 @@ interface StockBalanceRow {
   closing: number
 }
 
-const GREETING = (): string => {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
-}
-
 const CHART_COLORS = ['#1890ff', '#52c41a', '#faad14', '#722ed1', '#eb2f96', '#13c2c2', '#fa8c16']
 
 export function DashboardPage(): React.ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
-  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null)
   const [inventorySummary, setInventorySummary] = useState<InventorySummary | null>(null)
   const [recentBills, setRecentBills] = useState<BillListRow[]>([])
   const [lowStockList, setLowStockList] = useState<LowStockRow[]>([])
-  const [salesByDay, setSalesByDay] = useState<{ date: string; total: number }[]>([])
+  const [expiringSoonList, setExpiringSoonList] = useState<ExpiringSoonRow[]>([])
   const [stockByCategory, setStockByCategory] = useState<{ name: string; value: number }[]>([])
   const [refreshing, setRefreshing] = useState(false)
-
-  const fetchSalesChart = useCallback(() => {
-    const weekStart = dayjs().subtract(6, 'day').format('YYYY-MM-DD')
-    const today = dayjs().format('YYYY-MM-DD')
-    return window.api
-      .invoke<{ summary: unknown; rows: { date: string; total_amount: number }[] }>('reports:getSales', {
-        startDate: weekStart,
-        endDate: today
-      })
-      .then((res) => {
-        const rows = res?.rows ?? []
-        const byDate = new Map<string, number>()
-        for (let d = dayjs(weekStart); d.isBefore(dayjs(today).add(1, 'day')); d = d.add(1, 'day')) {
-          const key = d.format('YYYY-MM-DD')
-          byDate.set(key, 0)
-        }
-        rows.forEach((r) => {
-          const key = r.date?.slice(0, 10) ?? ''
-          if (byDate.has(key)) byDate.set(key, (byDate.get(key) ?? 0) + (r.total_amount ?? 0))
-        })
-        const arr = [...byDate.entries()]
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([date, total]) => ({ date: dayjs(date).format('MMM D'), total }))
-        setSalesByDay(arr)
-      })
-      .catch(() => setSalesByDay([]))
-  }, [])
 
   const fetchDashboard = useCallback((showLoading = true): Promise<void> => {
     if (showLoading) setLoading(true)
@@ -98,17 +76,17 @@ export function DashboardPage(): React.ReactElement {
     const today = dayjs().format('YYYY-MM-DD')
 
     return Promise.all([
-      window.api.invoke<DailySummary>('billing:getDailySummary', today),
       window.api.invoke<InventorySummary>('inventory:getSummary'),
       window.api.invoke<{ data: BillListRow[]; total: number }>('billing:getBills', { page: 1, pageSize: 5 }),
       window.api.invoke<LowStockRow[]>('inventory:getLowStock', 5),
+      window.api.invoke<ExpiringSoonRow[]>('inventory:getExpiringSoon', { days: 90, limit: 10 }),
       window.api.invoke<{ summary: unknown; rows: StockBalanceRow[] }>('reports:getStockBalance', { asOfDate: today })
     ])
-      .then(([daily, inv, bills, lowStock, stockBalance]) => {
-        setDailySummary(daily ?? null)
+      .then(([inv, bills, lowStock, expiringSoon, stockBalance]) => {
         setInventorySummary(inv ?? null)
         setRecentBills(bills?.data ?? [])
         setLowStockList(lowStock ?? [])
+        setExpiringSoonList(expiringSoon ?? [])
         const rows = stockBalance?.rows ?? []
         const byCat = new Map<string, number>()
         rows.forEach((r) => {
@@ -138,16 +116,10 @@ export function DashboardPage(): React.ReactElement {
     return () => window.removeEventListener('focus', onFocus)
   }, [fetchDashboard, location.pathname])
 
-  useEffect(() => {
-    fetchSalesChart()
-  }, [fetchSalesChart])
-
   const handleRefresh = (): void => {
     setRefreshing(true)
-    Promise.all([fetchDashboard(false), fetchSalesChart()]).finally(() => setRefreshing(false))
+    fetchDashboard(false).finally(() => setRefreshing(false))
   }
-
-  const userName = currentUser?.full_name?.trim() || currentUser?.username || 'User'
 
   const billColumns: ColumnsType<BillListRow> = [
     { title: 'Bill#', dataIndex: 'bill_number', key: 'bill_number', render: (v, r) => <a onClick={() => navigate('/billing/history')}>{v}</a> },
@@ -155,54 +127,47 @@ export function DashboardPage(): React.ReactElement {
     { title: 'Total', dataIndex: 'total_amount', key: 'total_amount', render: (v) => formatCurrency(v ?? 0) }
   ]
 
+  const todayStart = dayjs().startOf('day')
+  const end90 = todayStart.add(90, 'day')
+
+  const expiringSoonNext3Months = expiringSoonList
+    .filter((r) => r.expiry_date && !dayjs(r.expiry_date).isBefore(todayStart))
+    .filter((r) => r.expiry_date && !dayjs(r.expiry_date).isAfter(end90))
+    .slice(0, 5)
+
+  const expiredMedicines = expiringSoonList
+    .filter((r) => r.expiry_date && dayjs(r.expiry_date).isBefore(todayStart))
+    .slice(0, 5)
+
+  const stockOverviewRows = Array.from(
+    new Map<number, LowStockRow | ExpiringSoonRow>([...expiringSoonList, ...lowStockList].map((r) => [r.id, r]))
+      .values()
+  ).filter((r) => !r.expiry_date || !dayjs(r.expiry_date).isBefore(todayStart)).slice(0, 5)
+
+  const getStockOverviewStatus = (r: { current_quantity: number; min_stock_level: number; expiry_date: string | null }) => {
+    if (r.current_quantity < r.min_stock_level) {
+      return { label: 'Low Stock', bg: '#DC2626', color: '#FFFFFF' }
+    }
+
+    const expiryStatus = getExpiryStatus(r.expiry_date)
+    if (expiryStatus === 'warning30') {
+      return { label: 'Near Expiry', bg: '#F59E0B', color: '#FFFFFF' }
+    }
+
+    if (expiryStatus === 'expired') {
+      return { label: 'Expired', bg: '#DC2626', color: '#FFFFFF' }
+    }
+
+    return { label: 'In Stock', bg: '#ECFDF5', color: '#059669' }
+  }
+
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            {GREETING()}, {userName}
-          </Typography.Title>
-          <Typography.Text type="secondary">{dayjs().format('dddd, MMMM D, YYYY')}</Typography.Text>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          <Button
-            type="primary"
-            icon={<ShoppingCartOutlined />}
-            onClick={() => navigate('/billing/pos')}
-          >
-            New Bill
-          </Button>
-          <Button
-            type="default"
-            icon={<PlusOutlined />}
-            onClick={() => navigate('/medicines')}
-          >
-            Add Medicine
-          </Button>
-          <Button
-            type="default"
-            icon={<InboxOutlined />}
-            onClick={() => navigate('/inventory')}
-          >
-            Stock In / Out
-          </Button>
-          <Button
-            type="default"
-            icon={<ReloadOutlined spin={refreshing} />}
-            onClick={handleRefresh}
-            loading={refreshing}
-            title="Refresh dashboard"
-          >
-            Refresh
-          </Button>
-        </div>
-      </div>
-
       {loading ? (
         <>
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Col xs={24} sm={12} md={8} lg={6} key={i}>
+            {[1, 2, 3, 4].map((i) => (
+              <Col xs={24} sm={12} md={6} lg={6} key={i}>
                 <Card size="small"><Skeleton active paragraph={{ rows: 1 }} /></Card>
               </Col>
             ))}
@@ -218,105 +183,490 @@ export function DashboardPage(): React.ReactElement {
         </>
       ) : (
         <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Button
+          icon={<ReloadOutlined spin={refreshing} />}
+          onClick={handleRefresh}
+          loading={refreshing}
+          title="Refresh dashboard"
+        >
+          Refresh
+        </Button>
+      </div>
+
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card size="small" style={{ borderLeft: '4px solid #1890ff' }}>
-            <Typography.Text type="secondary">Today&apos;s Sales</Typography.Text>
-            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
-              {formatCurrency(dailySummary?.totalSales ?? 0)}
-            </Typography.Title>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card size="small" style={{ borderLeft: '4px solid #1890ff' }}>
-            <Typography.Text type="secondary">Today&apos;s Bills</Typography.Text>
-            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
-              {dailySummary?.billCount ?? 0}
-            </Typography.Title>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card size="small" style={{ borderLeft: '4px solid #52c41a' }}>
-            <Typography.Text type="secondary">Medicine Products</Typography.Text>
-            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
-              {inventorySummary?.totalMedicines ?? 0}
-            </Typography.Title>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>product types in catalog</Typography.Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card size="small" style={{ borderLeft: '4px solid #13c2c2' }}>
-            <Typography.Text type="secondary">Total Stock (units)</Typography.Text>
-            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
-              {(inventorySummary?.totalStockUnits ?? 0).toLocaleString()}
-            </Typography.Title>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>reduces when you sell</Typography.Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Card
-            size="small"
-            style={{ borderLeft: '4px solid #fa8c16', cursor: 'pointer' }}
-            onClick={() => navigate('/inventory')}
+            size="default"
+            style={{
+              background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 12
+            }}
           >
-            <Typography.Text type="secondary">Low Stock</Typography.Text>
-            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
-              {inventorySummary?.lowStock ?? 0}
-            </Typography.Title>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>View in Inventory</Typography.Text>
+            <div style={{ position: 'relative', minHeight: 118 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MedicineBoxOutlined style={{ color: 'rgba(255,255,255,0.98)', fontSize: 15 }} />
+                <Typography.Text style={{ color: 'rgba(255,255,255,0.96)', fontSize: 20, fontWeight: 700, lineHeight: 1 }}>
+                  Total Medicines
+                </Typography.Text>
+              </div>
+              <img
+                src="/total-medicines.png"
+                alt="Total medicines"
+                style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
+              />
+              <Typography.Title
+                level={1}
+                style={{
+                  position: 'absolute',
+                  right: 4,
+                  top: 28,
+                  margin: 0,
+                  color: '#fff',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontSize: 42
+                }}
+              >
+                {(inventorySummary?.totalMedicines ?? 0).toLocaleString()}
+              </Typography.Title>
+              <Button
+                size="small"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.28)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  height: 30,
+                  minWidth: 58,
+                  fontWeight: 700
+                }}
+                onClick={() => navigate('/medicines')}
+              >
+                View
+              </Button>
+            </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Card
-            size="small"
-            style={{ borderLeft: '4px solid #ff4d4f', cursor: 'pointer' }}
-            onClick={() => navigate('/inventory/expiry')}
+            size="default"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b, #ea580c)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 12
+            }}
           >
-            <Typography.Text type="secondary">Expiring Soon</Typography.Text>
-            <Typography.Title level={3} style={{ margin: '4px 0 0' }}>
-              {(inventorySummary?.expiringThisMonth ?? 0) + (inventorySummary?.expired ?? 0)}
-            </Typography.Title>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>View in Inventory</Typography.Text>
+            <div style={{ position: 'relative', minHeight: 118 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <WarningOutlined style={{ color: 'rgba(255,255,255,0.98)', fontSize: 15 }} />
+                <Typography.Text style={{ color: 'rgba(255,255,255,0.96)', fontSize: 20, fontWeight: 700, lineHeight: 1 }}>
+                  Low Stock Alerts
+                </Typography.Text>
+              </div>
+              <img
+                src="/low-stock.png"
+                alt="Low stock"
+                style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
+              />
+              <Typography.Title
+                level={1}
+                style={{
+                  position: 'absolute',
+                  right: 4,
+                  top: 28,
+                  margin: 0,
+                  color: '#fff',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontSize: 42
+                }}
+              >
+                {(inventorySummary?.lowStock ?? 0).toLocaleString()}
+              </Typography.Title>
+              <Button
+                size="small"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.28)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  height: 30,
+                  minWidth: 58,
+                  fontWeight: 700
+                }}
+                onClick={() => navigate('/inventory')}
+              >
+                View
+              </Button>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Card
+            size="default"
+            style={{
+              background: 'linear-gradient(135deg, #ef4444, #f97316)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 12
+            }}
+          >
+            <div style={{ position: 'relative', minHeight: 118 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ClockCircleOutlined style={{ color: 'rgba(255,255,255,0.98)', fontSize: 15 }} />
+                <Typography.Text style={{ color: 'rgba(255,255,255,0.96)', fontSize: 20, fontWeight: 700, lineHeight: 1 }}>
+                  Expiring Soon
+                </Typography.Text>
+              </div>
+              <img
+                src="/expiring-soon.png"
+                alt="Expiring soon"
+                style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
+              />
+              <Typography.Title
+                level={1}
+                style={{
+                  position: 'absolute',
+                  right: 4,
+                  top: 28,
+                  margin: 0,
+                  color: '#fff',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontSize: 42
+                }}
+              >
+                {(inventorySummary?.expiringThisMonth ?? 0).toLocaleString()}
+              </Typography.Title>
+              <Button
+                size="small"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.28)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  height: 30,
+                  minWidth: 58,
+                  fontWeight: 700
+                }}
+                onClick={() => navigate('/inventory/expiry')}
+              >
+                View
+              </Button>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Card
+            size="default"
+            style={{
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 12
+            }}
+          >
+            <div style={{ position: 'relative', minHeight: 118 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ExclamationCircleOutlined style={{ color: 'rgba(255,255,255,0.98)', fontSize: 15 }} />
+                <Typography.Text style={{ color: 'rgba(255,255,255,0.96)', fontSize: 20, fontWeight: 700, lineHeight: 1 }}>
+                  Expired Medicines
+                </Typography.Text>
+              </div>
+              <img
+                src="/expired-medicine.png"
+                alt="Expired medicines"
+                style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
+              />
+              <Typography.Title
+                level={1}
+                style={{
+                  position: 'absolute',
+                  right: 4,
+                  top: 28,
+                  margin: 0,
+                  color: '#fff',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontSize: 42
+                }}
+              >
+                {(inventorySummary?.expired ?? 0).toLocaleString()}
+              </Typography.Title>
+              <Button
+                size="small"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.28)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  height: 30,
+                  minWidth: 58,
+                  fontWeight: 700
+                }}
+                onClick={() => navigate('/inventory/expiry')}
+              >
+                View
+              </Button>
+            </div>
           </Card>
         </Col>
       </Row>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={12}>
-          <Card size="small" title="Sales Last 7 Days">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={salesByDay} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
-                <Tooltip formatter={(v: number) => [formatCurrency(v), 'Revenue']} />
-                <Bar dataKey="total" fill="#1890ff" name="Revenue" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <Card size="small" title="Stock Overview">
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: 10,
+                overflow: 'hidden',
+                border: '1px solid rgba(0,0,0,0.06)'
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {['Medicine Name', 'Batch No', 'Stock', 'Expiry Date', 'Status'].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          background: '#2B6CB0',
+                          color: '#fff',
+                          textAlign: 'left',
+                          padding: '10px 12px',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockOverviewRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: 14, color: '#6B7280' }}>
+                        No stock overview available
+                      </td>
+                    </tr>
+                  ) : (
+                    stockOverviewRows.map((r) => {
+                      const s = getStockOverviewStatus(r)
+                      return (
+                        <tr key={r.id}>
+                          <td style={{ padding: '10px 12px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                            <a
+                              onClick={() => navigate('/medicines')}
+                              style={{ color: '#2563EB', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              {r.name}
+                            </a>
+                          </td>
+                          <td style={{ padding: '10px 12px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                            {r.batch_no ?? '—'}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderTop: '1px solid rgba(0,0,0,0.04)', textAlign: 'right' }}>
+                            {(r.current_quantity ?? 0).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                            {formatDate(r.expiry_date)}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                background: s.bg,
+                                color: s.color,
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                fontWeight: 800,
+                                fontSize: 12,
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {s.label}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card size="small" title="Stock by Category">
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={stockByCategory}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {stockByCategory.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => [v, 'Units']} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <Card size="small" title="Expiry Alerts">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>▶ Expiring Soon (Next 3 Months):</div>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {expiringSoonNext3Months.length === 0 ? (
+                    <li>No expiring items</li>
+                  ) : (
+                    expiringSoonNext3Months.map((r) => (
+                      <li key={r.id}>
+                        {r.name} (Batch {r.batch_no ?? '—'}) - {formatDate(r.expiry_date)}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>▶ Expired Medicines:</div>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {expiredMedicines.length === 0 ? (
+                    <li>No expired items</li>
+                  ) : (
+                    expiredMedicines.map((r) => (
+                      <li key={r.id}>
+                        {r.name} (Batch {r.batch_no ?? '—'})
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            </div>
           </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Button
+            block
+            style={{
+              height: 56,
+              background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              fontWeight: 700
+            }}
+            icon={
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.22)'
+                }}
+              >
+                <PlusOutlined style={{ color: '#ffffff', fontSize: 18 }} />
+              </span>
+            }
+            onClick={() => navigate('/medicines?action=add')}
+          >
+            Add Medicine
+          </Button>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Button
+            block
+            style={{
+              height: 56,
+              background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              fontWeight: 700
+            }}
+            icon={
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.22)'
+                }}
+              >
+                <InboxOutlined style={{ color: '#ffffff', fontSize: 18 }} />
+              </span>
+            }
+            onClick={() => navigate('/inventory/transactions')}
+          >
+            Stock Entry
+          </Button>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Button
+            block
+            style={{
+              height: 56,
+              background: 'linear-gradient(135deg, #f97316, #fb7185)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              fontWeight: 700
+            }}
+            icon={
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.22)'
+                }}
+              >
+                <ShoppingCartOutlined style={{ color: '#ffffff', fontSize: 18 }} />
+              </span>
+            }
+            onClick={() => navigate('/billing/pos')}
+          >
+            Issue Medicine
+          </Button>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Button
+            block
+            style={{
+              height: 56,
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              fontWeight: 700
+            }}
+            icon={
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.22)'
+                }}
+              >
+                <BarChartOutlined style={{ color: '#ffffff', fontSize: 18 }} />
+              </span>
+            }
+            onClick={() => navigate('/reports')}
+          >
+            Reports
+          </Button>
         </Col>
       </Row>
 
@@ -355,6 +705,34 @@ export function DashboardPage(): React.ReactElement {
                 { title: 'Min', dataIndex: 'min_stock_level', key: 'min_stock_level', width: 80, align: 'right' as const }
               ]}
             />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} lg={24}>
+          <Card size="small" title="Stock by Medicine Category">
+            <ResponsiveContainer width="100%" height={260} debounce={120}>
+              <BarChart data={stockByCategory} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  tickMargin={8}
+                  interval={0}
+                  angle={-30}
+                  textAnchor="end"
+                  height={70}
+                />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
+                <Tooltip formatter={(v: number) => [v, 'Units']} />
+                <Bar dataKey="value" name="Units" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  {stockByCategory.map((item, i) => (
+                    <Cell key={`${item.name}-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </Card>
         </Col>
       </Row>

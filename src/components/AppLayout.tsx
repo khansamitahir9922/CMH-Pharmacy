@@ -297,49 +297,54 @@ export function AppLayout(): React.ReactElement {
             zIndex: 10
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {!logoError ? (
-              <img
-                src={LOGO_PATH}
-                alt=""
-                style={{ height: 38, width: 'auto', objectFit: 'contain' }}
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <MedicineBoxOutlined style={{ fontSize: 28, color: token.colorPrimary }} />
-            )}
-            <h3 style={{ margin: 0, color: token.colorText, fontWeight: 700, fontSize: 22, letterSpacing: '0.02em' }}>
-              SKBZ/CMH RAWALAKOT PHARMACY
-            </h3>
-          </div>
-          <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                cursor: 'pointer',
-                padding: '4px 8px',
-                borderRadius: token.borderRadius
-              }}
-            >
-              <UserOutlined style={{ color: token.colorTextSecondary, fontSize: 18 }} />
-              <span style={{ color: token.colorText, fontWeight: 500 }}>
-                {currentUser?.full_name ?? 'User'}
-              </span>
-              {currentUser?.role ? (
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: token.colorTextSecondary,
-                    textTransform: 'capitalize'
-                  }}
-                >
-                  ({currentUser.role})
-                </span>
-              ) : null}
+          <div style={{ width: 260, flexShrink: 0 }} />
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {!logoError ? (
+                <img
+                  src={LOGO_PATH}
+                  alt=""
+                  style={{ height: 42, width: 'auto', objectFit: 'contain' }}
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <MedicineBoxOutlined style={{ fontSize: 30, color: token.colorPrimary }} />
+              )}
+              <h2 style={{ margin: 0, color: token.colorText, fontWeight: 700, fontSize: 22, letterSpacing: '0.02em' }}>
+                SKBZ/CMH RAWALAKOT PHARMACY
+              </h2>
             </div>
-          </Dropdown>
+          </div>
+          <div style={{ width: 260, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+            <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  borderRadius: token.borderRadius
+                }}
+              >
+                <UserOutlined style={{ color: token.colorTextSecondary, fontSize: 18 }} />
+                <span style={{ color: token.colorText, fontWeight: 500 }}>
+                  {currentUser?.full_name ?? 'User'}
+                </span>
+                {currentUser?.role ? (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: token.colorTextSecondary,
+                      textTransform: 'capitalize'
+                    }}
+                  >
+                    ({currentUser.role})
+                  </span>
+                ) : null}
+              </div>
+            </Dropdown>
+          </div>
         </Header>
 
         <Content

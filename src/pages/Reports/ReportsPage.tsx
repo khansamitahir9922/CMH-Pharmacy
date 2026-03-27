@@ -21,7 +21,7 @@ const REPORT_CARDS = [
     key: 'sales',
     path: '/reports/sales',
     icon: <BarChartOutlined style={{ fontSize: 28, color: '#1890ff' }} />,
-    title: 'Daily/Monthly Sales Report',
+    title: 'Daily/Monthly Report',
     description: 'View sales summary, revenue, and bill details by date range with export options.'
   },
   {

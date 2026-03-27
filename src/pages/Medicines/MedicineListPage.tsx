@@ -19,6 +19,7 @@ import { useMedicines, type MedicineWithStock, type MedicineFilters } from '@/ho
 import { useAuthStore } from '@/store/authStore'
 import { MedicineFormModal } from './MedicineFormModal'
 import { getExpiryStatus, getExpiryColor, formatCurrency, formatDate } from '@/utils/expiryStatus'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 const EXPIRY_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -35,6 +36,8 @@ const STOCK_OPTIONS = [
 ]
 
 export function MedicineListPage(): React.ReactElement {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [expiryStatus, setExpiryStatus] = useState<MedicineFilters['expiryStatus']>('all')
@@ -69,6 +72,26 @@ export function MedicineListPage(): React.ReactElement {
       setCategories(list ?? [])
     })
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('action') !== 'add') return
+
+    // Allow external pages (e.g. dashboard) to open the medicine entry modal directly.
+    setEditId(null)
+    setAddWithBarcode(null)
+    setModalOpen(true)
+
+    params.delete('action')
+    const nextSearch = params.toString()
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : ''
+      },
+      { replace: true }
+    )
+  }, [location.pathname, location.search, navigate])
 
   const handleResetFilters = (): void => {
     setSearch('')

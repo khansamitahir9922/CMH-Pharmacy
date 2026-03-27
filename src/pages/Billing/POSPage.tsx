@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { AutoComplete, Button, Divider, Empty, Input, InputNumber, Radio, Space, Table, Typography, notification } from 'antd'
+import { AutoComplete, Button, Divider, Empty, Input, InputNumber, Space, Table, Typography, notification } from 'antd'
 import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons'
@@ -8,8 +8,6 @@ import { useAuthStore } from '@/store/authStore'
 import { formatCurrency } from '@/utils/expiryStatus'
 import { BillReceiptModal, type ReceiptData } from './BillReceiptModal'
 import { useNavigate } from 'react-router-dom'
-
-type PaymentMode = 'cash' | 'card' | 'credit'
 
 interface MedicineSearchRow {
   id: number
@@ -55,9 +53,6 @@ export function POSPage(): React.ReactElement {
 
   const [discountPercent, setDiscountPercent] = useState(0)
   const [taxPercent, setTaxPercent] = useState(0)
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash')
-  const [amountReceived, setAmountReceived] = useState(0)
-
   const [generating, setGenerating] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
@@ -92,8 +87,6 @@ export function POSPage(): React.ReactElement {
   const taxable = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount])
   const taxAmount = useMemo(() => Math.round((taxable * clampInt(taxPercent, 0, 100)) / 100), [taxable, taxPercent])
   const total = useMemo(() => taxable + taxAmount, [taxable, taxAmount])
-  const changeDue = useMemo(() => (paymentMode === 'cash' ? amountReceived - total : 0), [amountReceived, total, paymentMode])
-
   useEffect(() => {
     // keyboard shortcuts
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -118,7 +111,7 @@ export function POSPage(): React.ReactElement {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receiptData, total, paymentMode, amountReceived, items, discountPercent, taxPercent, customerName, customerPhone])
+  }, [receiptData, total, items, discountPercent, taxPercent, customerName, customerPhone])
 
   const fetchSearch = (term: string): void => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
@@ -151,7 +144,7 @@ export function POSPage(): React.ReactElement {
         const next = [...prev]
         const existing = next[idx]
         const newQty = existing.qty + 1
-        next[idx] = { ...existing, qty: newQty }
+        next[idx] = { ...existing, qty: newQty, unitPrice: 0 }
         return next
       }
       return [
@@ -163,7 +156,7 @@ export function POSPage(): React.ReactElement {
           batchNo: m.batch_no ?? null,
           stock: m.current_quantity ?? 0,
           qty: 1,
-          unitPrice: m.unit_price_sell ?? 0
+          unitPrice: 0
         }
       ]
     })
@@ -187,8 +180,6 @@ export function POSPage(): React.ReactElement {
     setCustomerName('')
     setCustomerPhone('')
     setDiscountPercent(0)
-    setPaymentMode('cash')
-    setAmountReceived(0)
     setReceiptData(null)
     setReceiptOpen(false)
     setTimeout(() => searchInputRef.current?.focus(), 0)
@@ -200,11 +191,6 @@ export function POSPage(): React.ReactElement {
       notification.warning({ message: 'No items', description: 'Search for medicines above to add them to this bill.' })
       return
     }
-    if (paymentMode === 'cash' && total > 0 && amountReceived < total) {
-      notification.error({ message: 'Cash received is insufficient', description: 'Amount received must be greater than or equal to total.' })
-      return
-    }
-
     setGenerating(true)
     try {
       const payload = {
@@ -212,11 +198,12 @@ export function POSPage(): React.ReactElement {
           name: customerName.trim() ? customerName.trim() : null,
           phone: customerPhone.trim() ? customerPhone.trim() : null
         },
-        items: items.map((it) => ({ medicineId: it.medicineId, quantity: it.qty, unitPrice: it.unitPrice })),
-        discount: { percent: clampInt(discountPercent, 0, 100) },
-        tax: { percent: clampInt(taxPercent, 0, 100) },
-        paymentMode,
-        received: paymentMode === 'cash' ? toInt(amountReceived) : null,
+        // Free-of-cost dispensing: still records issuance and updates stock, with zero pricing.
+        items: items.map((it) => ({ medicineId: it.medicineId, quantity: it.qty, unitPrice: 0 })),
+        discount: { percent: 0 },
+        tax: { percent: 0 },
+        paymentMode: 'cash' as const,
+        received: 0,
         createdBy: currentUser?.id ?? null
       }
 
@@ -295,9 +282,7 @@ export function POSPage(): React.ReactElement {
               {m.generic_name ? `Formula: ${m.generic_name} · ` : ''}Batch: {m.batch_no ?? '—'} | Stock: {m.current_quantity ?? 0}
             </div>
           </div>
-          <div style={{ fontWeight: 700, color: '#1A56DB', whiteSpace: 'nowrap' }}>
-            {formatCurrency(m.unit_price_sell ?? 0)}
-          </div>
+          <div style={{ fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>FREE</div>
         </div>
       )
     }))
@@ -465,40 +450,11 @@ export function POSPage(): React.ReactElement {
         <Divider style={{ margin: '14px 0' }} />
 
         <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-          Payment
+          Dispensing Mode
         </Typography.Title>
-        <Space direction="vertical" style={{ width: '100%' }} size={10}>
-          <Radio.Group
-            value={paymentMode}
-            onChange={(e) => setPaymentMode(e.target.value)}
-            optionType="button"
-            buttonStyle="solid"
-          >
-            <Radio.Button value="cash">Cash</Radio.Button>
-            <Radio.Button value="card">Card</Radio.Button>
-            <Radio.Button value="credit">Credit</Radio.Button>
-          </Radio.Group>
-
-          {paymentMode === 'cash' ? (
-            <>
-              <InputNumber
-                min={0}
-                step={0.01}
-                value={amountReceived / 100}
-                onChange={(v) => setAmountReceived(Math.round((Number(v) || 0) * 100))}
-                onFocus={selectAllOnFocus}
-                style={{ width: '100%' }}
-                placeholder="Amount Received (Rs.)"
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span>Change Due</span>
-                <span style={{ fontWeight: 800, color: changeDue >= 0 ? '#059669' : '#DC2626' }}>
-                  {formatCurrency(Math.max(0, changeDue))}
-                </span>
-              </div>
-            </>
-          ) : null}
-        </Space>
+        <div style={{ fontSize: 13, color: '#059669', fontWeight: 700, marginBottom: 8 }}>
+          Free of cost issuance (no payment required).
+        </div>
 
         <Divider style={{ margin: '14px 0' }} />
 
