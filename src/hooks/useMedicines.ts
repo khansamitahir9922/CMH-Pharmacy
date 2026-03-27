@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 export interface MedicineFilters {
   search?: string
@@ -53,6 +53,7 @@ export function useMedicines(filters: MedicineFilters): {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search ?? '')
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -62,6 +63,7 @@ export function useMedicines(filters: MedicineFilters): {
   }, [filters.search])
 
   const fetchData = useCallback(() => {
+    const reqId = ++requestIdRef.current
     setLoading(true)
     setError(null)
     window.api
@@ -76,15 +78,19 @@ export function useMedicines(filters: MedicineFilters): {
         sortOrder: filters.sortOrder ?? 'asc'
       })
       .then((res) => {
+        if (reqId !== requestIdRef.current) return
         setMedicines(res.data ?? [])
         setTotal(res.total ?? 0)
       })
       .catch((err) => {
+        if (reqId !== requestIdRef.current) return
         setError(err instanceof Error ? err.message : 'Failed to load medicines')
         setMedicines([])
         setTotal(0)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (reqId === requestIdRef.current) setLoading(false)
+      })
   }, [
     debouncedSearch,
     filters.categoryId,

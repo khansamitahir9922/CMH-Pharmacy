@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Typography, Card, Row, Col, Table, Button, Skeleton } from 'antd'
 import {
   ReloadOutlined,
@@ -69,6 +69,7 @@ export function DashboardPage(): React.ReactElement {
   const [expiringSoonList, setExpiringSoonList] = useState<ExpiringSoonRow[]>([])
   const [stockByCategory, setStockByCategory] = useState<{ name: string; value: number }[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const lastFocusFetchMsRef = useRef(0)
 
   const fetchDashboard = useCallback((showLoading = true): Promise<void> => {
     if (showLoading) setLoading(true)
@@ -109,6 +110,9 @@ export function DashboardPage(): React.ReactElement {
   useEffect(() => {
     const onFocus = (): void => {
       if (location.pathname === '/dashboard' || location.pathname.endsWith('/dashboard')) {
+        const now = Date.now()
+        if (now - lastFocusFetchMsRef.current < 20000) return
+        lastFocusFetchMsRef.current = now
         fetchDashboard(false)
       }
     }
@@ -127,22 +131,52 @@ export function DashboardPage(): React.ReactElement {
     { title: 'Total', dataIndex: 'total_amount', key: 'total_amount', render: (v) => formatCurrency(v ?? 0) }
   ]
 
-  const todayStart = dayjs().startOf('day')
-  const end90 = todayStart.add(90, 'day')
+  const expiringSoonNext3Months = useMemo(() => {
+    const localTodayStart = dayjs().startOf('day')
+    const localEnd90 = localTodayStart.add(90, 'day')
+    return expiringSoonList
+      .filter((r) => r.expiry_date && !dayjs(r.expiry_date).isBefore(localTodayStart))
+      .filter((r) => r.expiry_date && !dayjs(r.expiry_date).isAfter(localEnd90))
+      .slice(0, 5)
+  }, [expiringSoonList])
 
-  const expiringSoonNext3Months = expiringSoonList
-    .filter((r) => r.expiry_date && !dayjs(r.expiry_date).isBefore(todayStart))
-    .filter((r) => r.expiry_date && !dayjs(r.expiry_date).isAfter(end90))
-    .slice(0, 5)
+  const expiredMedicines = useMemo(
+    () => expiringSoonList.filter((r) => r.expiry_date && dayjs(r.expiry_date).isBefore(dayjs().startOf('day'))).slice(0, 5),
+    [expiringSoonList]
+  )
 
-  const expiredMedicines = expiringSoonList
-    .filter((r) => r.expiry_date && dayjs(r.expiry_date).isBefore(todayStart))
-    .slice(0, 5)
+  const movingAlertLines = useMemo(
+    () => [
+      ...expiredMedicines.map((r) => `[Expired] ${r.name} (Batch ${r.batch_no ?? '—'})`),
+      ...lowStockList.map((r) => `[Low Stock] ${r.name} (Current ${r.current_quantity}, Min ${r.min_stock_level})`)
+    ],
+    [expiredMedicines, lowStockList]
+  )
 
-  const stockOverviewRows = Array.from(
-    new Map<number, LowStockRow | ExpiringSoonRow>([...expiringSoonList, ...lowStockList].map((r) => [r.id, r]))
-      .values()
-  ).filter((r) => !r.expiry_date || !dayjs(r.expiry_date).isBefore(todayStart)).slice(0, 5)
+  const stockOverviewRows = useMemo(
+    () =>
+      Array.from(
+        // Keep unique medicines, but prioritize low/out-of-stock rows first.
+        new Map<number, LowStockRow | ExpiringSoonRow>([...lowStockList, ...expiringSoonList].map((r) => [r.id, r])).values()
+      )
+        .sort((a, b) => {
+          const aLow = a.current_quantity < a.min_stock_level ? 1 : 0
+          const bLow = b.current_quantity < b.min_stock_level ? 1 : 0
+          if (aLow !== bLow) return bLow - aLow
+
+          const aStatus = getExpiryStatus(a.expiry_date)
+          const bStatus = getExpiryStatus(b.expiry_date)
+          const rank = (s: 'expired' | 'warning30' | 'warning90' | 'ok'): number => {
+            if (s === 'warning30') return 0
+            if (s === 'expired') return 1
+            if (s === 'warning90') return 2
+            return 3
+          }
+          return rank(aStatus) - rank(bStatus)
+        })
+        .slice(0, 5),
+    [lowStockList, expiringSoonList]
+  )
 
   const getStockOverviewStatus = (r: { current_quantity: number; min_stock_level: number; expiry_date: string | null }) => {
     if (r.current_quantity < r.min_stock_level) {
@@ -733,6 +767,24 @@ export function DashboardPage(): React.ReactElement {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24}>
+          <Card size="small" title="Inventory Moving Alerts">
+            {movingAlertLines.length === 0 ? (
+              <Typography.Text type="secondary">No expired or low stock alerts.</Typography.Text>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {movingAlertLines.map((line, idx) => (
+                  <div key={`${line}-${idx}`} className="dashboard-moving-headline">
+                    <span>{line}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </Col>
       </Row>

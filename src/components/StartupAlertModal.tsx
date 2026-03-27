@@ -68,7 +68,11 @@ export function StartupAlertModal({
           dataSource={issues}
           renderItem={(item) => (
             <List.Item>
-              <span style={{ color: item.type === 'Expired' ? '#dc2626' : '#d97706' }}>[{item.type}]</span> {item.name}
+              <div className="startup-moving-headline">
+                <span>
+                  <span style={{ color: item.type === 'Expired' ? '#dc2626' : '#d97706' }}>[{item.type}]</span> {item.name}
+                </span>
+              </div>
             </List.Item>
           )}
         />

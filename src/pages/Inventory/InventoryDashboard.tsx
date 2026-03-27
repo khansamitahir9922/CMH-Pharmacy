@@ -34,8 +34,6 @@ interface ExpiringRow {
   current_quantity: number
 }
 
-const CARD_BORDER = { borderLeft: '4px solid' }
-
 export function InventoryDashboard(): React.ReactElement {
   const navigate = useNavigate()
   const { summary, setSummary, dismissedBanners, dismissBanner } = useAlertStore()
@@ -68,6 +66,11 @@ export function InventoryDashboard(): React.ReactElement {
   const showExpiredBanner = summaryData.expired > 0 && !dismissedBanners.has('expired')
   const showExpiringBanner = summaryData.expiringThisMonth > 0 && !dismissedBanners.has('expiring30')
   const showLowStockBanner = summaryData.lowStock > 0 && !dismissedBanners.has('lowStock')
+  const movingHeadline = (text: string): React.ReactElement => (
+    <div className="moving-headline">
+      <span>{text}</span>
+    </div>
+  )
 
   const lowStockColumns: ColumnsType<LowStockRow> = [
     { title: 'Medicine Name', dataIndex: 'name', key: 'name' },
@@ -121,37 +124,52 @@ export function InventoryDashboard(): React.ReactElement {
     <div style={{ padding: 24 }}>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#1A56DB' }}>
-            <MedicineBoxOutlined style={{ fontSize: 28, color: '#1A56DB', marginBottom: 8 }} />
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{summaryData.totalMedicines}</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>Medicine Products</div>
+          <Card
+            size="small"
+            style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <MedicineBoxOutlined style={{ fontSize: 28, color: 'rgba(255,255,255,0.95)', marginBottom: 8 }} />
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{summaryData.totalMedicines}</div>
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Medicine Products</div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#13c2c2' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{(summaryData.totalStockUnits ?? 0).toLocaleString()}</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>Total Stock (units)</div>
+          <Card
+            size="small"
+            style={{ background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{(summaryData.totalStockUnits ?? 0).toLocaleString()}</div>
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Total Stock (units)</div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#D97706' }}>
-            <WarningOutlined style={{ fontSize: 28, color: '#D97706', marginBottom: 8 }} />
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{summaryData.lowStock}</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>Low Stock</div>
+          <Card
+            size="small"
+            style={{ background: 'linear-gradient(135deg, #f59e0b, #ea580c)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <WarningOutlined style={{ fontSize: 28, color: 'rgba(255,255,255,0.95)', marginBottom: 8 }} />
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{summaryData.lowStock}</div>
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Low Stock</div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#D97706' }}>
-            <ClockCircleOutlined style={{ fontSize: 28, color: '#D97706', marginBottom: 8 }} />
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{summaryData.expiringThisMonth}</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>Expiring This Month</div>
+          <Card
+            size="small"
+            style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <ClockCircleOutlined style={{ fontSize: 28, color: 'rgba(255,255,255,0.95)', marginBottom: 8 }} />
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{summaryData.expiringThisMonth}</div>
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Expiring This Month</div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" style={{ ...CARD_BORDER, borderLeftColor: '#DC2626' }}>
-            <ExclamationCircleOutlined style={{ fontSize: 28, color: '#DC2626', marginBottom: 8 }} />
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#111827' }}>{summaryData.expired}</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>Expired</div>
+          <Card
+            size="small"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <ExclamationCircleOutlined style={{ fontSize: 28, color: 'rgba(255,255,255,0.95)', marginBottom: 8 }} />
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{summaryData.expired}</div>
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Expired</div>
           </Card>
         </Col>
       </Row>
@@ -159,7 +177,7 @@ export function InventoryDashboard(): React.ReactElement {
       {showExpiredBanner && (
         <Alert
           type="error"
-          message={`${summaryData.expired} medicines have expired. Take action immediately.`}
+          message={movingHeadline(`${summaryData.expired} medicines have expired. Take action immediately.`)}
           showIcon
           closable
           onClose={() => dismissBanner('expired')}
@@ -178,7 +196,7 @@ export function InventoryDashboard(): React.ReactElement {
       )}
       {showLowStockBanner && (
         <Alert
-          message={`${summaryData.lowStock} medicines are below minimum stock level.`}
+          message={movingHeadline(`${summaryData.lowStock} medicines are below minimum stock level.`)}
           showIcon
           closable
           onClose={() => dismissBanner('lowStock')}

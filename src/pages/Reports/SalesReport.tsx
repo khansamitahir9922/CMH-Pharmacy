@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Typography, DatePicker, Tabs, Table, Card, Row, Col, Button, Skeleton, Space } from 'antd'
 import { FileExcelOutlined, FilePdfOutlined, PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -116,28 +116,33 @@ export function SalesReport(): React.ReactElement {
     { title: 'Payment Mode', dataIndex: 'payment_mode', key: 'payment_mode', width: 110 }
   ]
 
-  const dataWithSubtotals: { date?: string; bill_number?: string; isSubtotal?: boolean; total_amount?: number }[] = []
-  let lastDate = ''
-  for (const r of rows) {
-    if (r.date !== lastDate && lastDate) {
-      const dayTotal = rows.filter((x) => x.date === lastDate).reduce((s, x) => s + x.total_amount, 0)
-      dataWithSubtotals.push({
-        date: `Subtotal (${lastDate})`,
+  const dataWithSubtotals: { date?: string; bill_number?: string; isSubtotal?: boolean; total_amount?: number }[] = useMemo(() => {
+    const out: { date?: string; bill_number?: string; isSubtotal?: boolean; total_amount?: number }[] = []
+    let currentDate = ''
+    let runningTotal = 0
+    for (const r of rows) {
+      if (!currentDate) currentDate = r.date
+      if (r.date !== currentDate) {
+        out.push({
+          date: `Subtotal (${currentDate})`,
+          isSubtotal: true,
+          total_amount: runningTotal
+        })
+        currentDate = r.date
+        runningTotal = 0
+      }
+      runningTotal += r.total_amount ?? 0
+      out.push({ ...r })
+    }
+    if (currentDate) {
+      out.push({
+        date: `Subtotal (${currentDate})`,
         isSubtotal: true,
-        total_amount: dayTotal
+        total_amount: runningTotal
       })
     }
-    lastDate = r.date
-    dataWithSubtotals.push({ ...r })
-  }
-  if (lastDate) {
-    const dayTotal = rows.filter((x) => x.date === lastDate).reduce((s, x) => s + x.total_amount, 0)
-    dataWithSubtotals.push({
-      date: `Subtotal (${lastDate})`,
-      isSubtotal: true,
-      total_amount: dayTotal
-    })
-  }
+    return out
+  }, [rows])
 
   const tableColumns: ColumnsType<Record<string, unknown>> = [
     { title: 'Date', dataIndex: 'date', key: 'date', width: 180, render: (v: string, r) => r.isSubtotal ? <strong>{v}</strong> : v },

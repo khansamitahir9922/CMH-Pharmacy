@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AutoComplete, Button, Divider, Empty, Input, InputNumber, Space, Table, Typography, notification } from 'antd'
 import { selectAllOnFocus } from '../../utils/inputUtils'
 import type { ColumnsType } from 'antd/es/table'
@@ -56,6 +56,9 @@ export function POSPage(): React.ReactElement {
   const [generating, setGenerating] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
+  const receiptDataRef = useRef<ReceiptData | null>(null)
+  const generateBillRef = useRef<() => Promise<void>>(async () => {})
+  const clearRef = useRef<() => void>(() => {})
 
   const [tableY, setTableY] = useState(260)
   const tableWrapRef = useRef<HTMLDivElement | null>(null)
@@ -88,30 +91,8 @@ export function POSPage(): React.ReactElement {
   const taxAmount = useMemo(() => Math.round((taxable * clampInt(taxPercent, 0, 100)) / 100), [taxable, taxPercent])
   const total = useMemo(() => taxable + taxAmount, [taxable, taxAmount])
   useEffect(() => {
-    // keyboard shortcuts
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'F2') {
-        e.preventDefault()
-        handleClear()
-        return
-      }
-      if (e.key === 'F8') {
-        e.preventDefault()
-        void handleGenerateBill()
-        return
-      }
-      if (e.ctrlKey && e.key.toLowerCase() === 'p') {
-        // print last receipt if available
-        if (receiptData) {
-          e.preventDefault()
-          window.print()
-        }
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receiptData, total, items, discountPercent, taxPercent, customerName, customerPhone])
+    receiptDataRef.current = receiptData
+  }, [receiptData])
 
   const fetchSearch = (term: string): void => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
@@ -175,7 +156,7 @@ export function POSPage(): React.ReactElement {
     setItems((prev) => prev.filter((it) => it.medicineId !== medicineId))
   }
 
-  const handleClear = (): void => {
+  const handleClear = useCallback((): void => {
     setItems([])
     setCustomerName('')
     setCustomerPhone('')
@@ -183,9 +164,9 @@ export function POSPage(): React.ReactElement {
     setReceiptData(null)
     setReceiptOpen(false)
     setTimeout(() => searchInputRef.current?.focus(), 0)
-  }
+  }, [])
 
-  const handleGenerateBill = async (): Promise<void> => {
+  const handleGenerateBill = useCallback(async (): Promise<void> => {
     if (generating) return
     if (!items.length) {
       notification.warning({ message: 'No items', description: 'Search for medicines above to add them to this bill.' })
@@ -220,7 +201,34 @@ export function POSPage(): React.ReactElement {
     } finally {
       setGenerating(false)
     }
-  }
+  }, [generating, items, customerName, customerPhone, currentUser?.id])
+
+  useEffect(() => {
+    generateBillRef.current = handleGenerateBill
+    clearRef.current = handleClear
+  }, [handleGenerateBill, handleClear])
+
+  useEffect(() => {
+    // Register once; current callbacks are read from refs.
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'F2') {
+        e.preventDefault()
+        clearRef.current()
+        return
+      }
+      if (e.key === 'F8') {
+        e.preventDefault()
+        void generateBillRef.current()
+        return
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'p' && receiptDataRef.current) {
+        e.preventDefault()
+        window.print()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const columns: ColumnsType<BillLineItem & { idx: number }> = [
     { title: '#', key: 'idx', width: 44, render: (_, r) => r.idx + 1 },

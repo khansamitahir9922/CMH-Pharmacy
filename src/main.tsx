@@ -4,6 +4,7 @@ import { ConfigProvider, App as AntdApp } from 'antd'
 import App from './App'
 
 import 'antd/dist/reset.css'
+import './styles/animations.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
