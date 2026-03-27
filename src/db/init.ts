@@ -24,6 +24,7 @@ export function initDatabase(dbPath: string): BetterSQLite3Database<typeof schem
   migrateMedicinesGenericName(sqlite)
   migratePrescriptionsColumns(sqlite)
   migratePurchaseOrdersSupplyOrderNumber(sqlite)
+  cleanupDummyMedicines(sqlite)
   seedDefaults(sqlite)
 
   db = drizzle(sqlite, { schema })
@@ -278,6 +279,15 @@ function migratePurchaseOrdersSupplyOrderNumber(conn: Database.Database): void {
   conn.exec('ALTER TABLE purchase_orders ADD COLUMN supply_order_number TEXT')
   conn.exec('UPDATE purchase_orders SET supply_order_number = order_number WHERE supply_order_number IS NULL')
   conn.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_orders_supply_order_number ON purchase_orders(supply_order_number)')
+}
+
+/** Soft-delete legacy dummy/sample medicines from older test data. */
+function cleanupDummyMedicines(conn: Database.Database): void {
+  conn.exec(`
+    UPDATE medicines
+    SET is_deleted = 1, updated_at = datetime('now')
+    WHERE is_deleted = 0 AND lower(name) LIKE 'dummy%';
+  `)
 }
 
 function seedDefaults(conn: Database.Database): void {
