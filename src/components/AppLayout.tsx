@@ -23,7 +23,8 @@ const { Header, Sider, Content, Footer } = Layout
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const ALERT_POLL_MS = 5 * 60 * 1000 // 5 minutes
 
-const LOGO_PATH = '/logo.png'
+const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'
+const LOGO_PATH = `${BASE}logo.png`
 
 export function AppLayout(): React.ReactElement {
   const [collapsed, setCollapsed] = useState(false)

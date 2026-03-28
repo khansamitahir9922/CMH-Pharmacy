@@ -50,3 +50,59 @@
     transform: translateX(0%);
   }
 }
+
+/* Single-line inventory ticker: one continuous row, seamless loop */
+.dashboard-inventory-ticker {
+  overflow: hidden;
+  width: 100%;
+  line-height: 1.5;
+}
+
+.dashboard-inventory-ticker__track {
+  display: flex;
+  width: max-content;
+  animation: dashboard-inventory-ticker-scroll var(--dashboard-ticker-duration, 40s) linear infinite;
+}
+
+.dashboard-inventory-ticker__segment {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+  padding-right: 4rem;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.dashboard-inventory-ticker__item {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dashboard-inventory-ticker__item--expired {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.dashboard-inventory-ticker__item--lowStock {
+  background: #d97706;
+  color: #ffffff;
+}
+
+@keyframes dashboard-inventory-ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}

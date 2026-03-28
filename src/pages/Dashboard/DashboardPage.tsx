@@ -59,6 +59,12 @@ interface StockBalanceRow {
 
 const CHART_COLORS = ['#1890ff', '#52c41a', '#faad14', '#722ed1', '#eb2f96', '#13c2c2', '#fa8c16']
 
+type MovingAlertTickerItem = {
+  key: string
+  kind: 'expired' | 'lowStock'
+  text: string
+}
+
 export function DashboardPage(): React.ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
@@ -145,12 +151,23 @@ export function DashboardPage(): React.ReactElement {
     [expiringSoonList]
   )
 
-  const movingAlertLines = useMemo(
-    () => [
-      ...expiredMedicines.map((r) => `[Expired] ${r.name} (Batch ${r.batch_no ?? '—'})`),
-      ...lowStockList.map((r) => `[Low Stock] ${r.name} (Current ${r.current_quantity}, Min ${r.min_stock_level})`)
-    ],
-    [expiredMedicines, lowStockList]
+  const movingAlertItems = useMemo((): MovingAlertTickerItem[] => {
+    const expired: MovingAlertTickerItem[] = expiredMedicines.map((r) => ({
+      key: `expired-${r.id}`,
+      kind: 'expired',
+      text: `[Expired] ${r.name} (Batch ${r.batch_no ?? '—'})`
+    }))
+    const low: MovingAlertTickerItem[] = lowStockList.map((r) => ({
+      key: `low-${r.id}`,
+      kind: 'lowStock',
+      text: `[Low Stock] ${r.name} (Current ${r.current_quantity}, Min ${r.min_stock_level})`
+    }))
+    return [...expired, ...low]
+  }, [expiredMedicines, lowStockList])
+
+  const movingAlertTickerDurationSec = useMemo(
+    () => Math.min(80, Math.max(20, movingAlertItems.length * 6)),
+    [movingAlertItems.length]
   )
 
   const stockOverviewRows = useMemo(
@@ -246,7 +263,7 @@ export function DashboardPage(): React.ReactElement {
                 </Typography.Text>
               </div>
               <img
-                src="/total-medicines.png"
+                src="./total-medicines.png"
                 alt="Total medicines"
                 style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
               />
@@ -302,7 +319,7 @@ export function DashboardPage(): React.ReactElement {
                 </Typography.Text>
               </div>
               <img
-                src="/low-stock.png"
+                src="./low-stock.png"
                 alt="Low stock"
                 style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
               />
@@ -358,7 +375,7 @@ export function DashboardPage(): React.ReactElement {
                 </Typography.Text>
               </div>
               <img
-                src="/expiring-soon.png"
+                src="./expiring-soon.png"
                 alt="Expiring soon"
                 style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
               />
@@ -414,7 +431,7 @@ export function DashboardPage(): React.ReactElement {
                 </Typography.Text>
               </div>
               <img
-                src="/expired-medicine.png"
+                src="./expired-medicine.png"
                 alt="Expired medicines"
                 style={{ position: 'absolute', left: -4, bottom: -2, width: 72, height: 58, objectFit: 'contain' }}
               />
@@ -774,15 +791,37 @@ export function DashboardPage(): React.ReactElement {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24}>
           <Card size="small" title="Inventory Moving Alerts">
-            {movingAlertLines.length === 0 ? (
+            {movingAlertItems.length === 0 ? (
               <Typography.Text type="secondary">No expired or low stock alerts.</Typography.Text>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {movingAlertLines.map((line, idx) => (
-                  <div key={`${line}-${idx}`} className="dashboard-moving-headline">
-                    <span>{line}</span>
-                  </div>
-                ))}
+              <div
+                className="dashboard-inventory-ticker"
+                style={
+                  { ['--dashboard-ticker-duration' as string]: `${movingAlertTickerDurationSec}s` } as React.CSSProperties
+                }
+              >
+                <div className="dashboard-inventory-ticker__track">
+                  <span className="dashboard-inventory-ticker__segment">
+                    {movingAlertItems.map((item) => (
+                      <span
+                        key={`a-${item.key}`}
+                        className={`dashboard-inventory-ticker__item dashboard-inventory-ticker__item--${item.kind}`}
+                      >
+                        {item.text}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="dashboard-inventory-ticker__segment" aria-hidden>
+                    {movingAlertItems.map((item) => (
+                      <span
+                        key={`b-${item.key}`}
+                        className={`dashboard-inventory-ticker__item dashboard-inventory-ticker__item--${item.kind}`}
+                      >
+                        {item.text}
+                      </span>
+                    ))}
+                  </span>
+                </div>
               </div>
             )}
           </Card>
