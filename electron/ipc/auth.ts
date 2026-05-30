@@ -4,6 +4,7 @@ import {
   isUsersEmpty,
   createUser,
   findByUsername,
+  findActiveUserById,
   updateLastLogin
 } from '../../src/db/queries/auth'
 import { log as auditLog } from '../../src/db/queries/audit'
@@ -128,6 +129,33 @@ export function registerAuthHandlers(): void {
         }
       } catch {
         return null
+      }
+    }
+  )
+
+  /**
+   * Restores main-process session when the renderer rehydrates persisted login (no password).
+   * Without this, IPC handlers that call requireSession() fail until the user signs in again.
+   */
+  ipcMain.handle(
+    'auth:syncSession',
+    async (_event, payload: { userId: number }): Promise<{ ok: boolean }> => {
+      try {
+        const uid = payload?.userId
+        if (uid == null || typeof uid !== 'number') {
+          currentSession = null
+          return { ok: false }
+        }
+        const user = findActiveUserById(uid)
+        if (!user) {
+          currentSession = null
+          return { ok: false }
+        }
+        currentSession = { userId: user.id, role: user.role }
+        return { ok: true }
+      } catch {
+        currentSession = null
+        return { ok: false }
       }
     }
   )

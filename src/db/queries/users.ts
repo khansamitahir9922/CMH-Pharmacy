@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm'
 import { getDb } from '../init'
-import { users } from '../schema'
+import { auditLog, bills, purchaseOrders, stockTransactions, users } from '../schema'
 import type { UserRole } from './auth'
 import * as auth from './auth'
 
@@ -44,6 +44,14 @@ export function getAll(): UserListRow[] {
     ...r,
     is_active: Boolean(r.is_active)
   }))
+}
+
+/**
+ * Count users with the given role (active and inactive).
+ */
+export function countUsersWithRole(role: UserRole): number {
+  const db = getDb()
+  return db.select({ id: users.id }).from(users).where(eq(users.role, role)).all().length
 }
 
 /**
@@ -94,4 +102,19 @@ export function updateUser(id: number, data: { role?: UserRole; is_active?: bool
 export function resetPassword(userId: number, passwordHash: string): void {
   const db = getDb()
   db.update(users).set({ password_hash: passwordHash }).where(eq(users.id, userId)).run()
+}
+
+/**
+ * Permanently remove a user. Clears FK references so delete succeeds with foreign_keys=ON.
+ */
+export function deleteUser(id: number): void {
+  const db = getDb()
+  db.transaction((tx) => {
+    tx.update(auditLog).set({ user_id: null }).where(eq(auditLog.user_id, id)).run()
+    tx.update(stockTransactions).set({ performed_by: null }).where(eq(stockTransactions.performed_by, id)).run()
+    tx.update(purchaseOrders).set({ created_by: null }).where(eq(purchaseOrders.created_by, id)).run()
+    tx.update(bills).set({ voided_by: null }).where(eq(bills.voided_by, id)).run()
+    tx.update(bills).set({ created_by: null }).where(eq(bills.created_by, id)).run()
+    tx.delete(users).where(eq(users.id, id)).run()
+  })
 }

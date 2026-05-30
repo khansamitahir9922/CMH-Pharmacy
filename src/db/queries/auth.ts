@@ -79,6 +79,22 @@ export function findByUsername(username: string): {
 }
 
 /**
+ * Returns id and role for an active user, or null. Used to restore main-process session after app restart.
+ */
+export function findActiveUserById(userId: number): { id: number; role: UserRole } | null {
+  const db = getDb()
+  const rows = db
+    .select({ id: users.id, role: users.role, is_active: users.is_active })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .all()
+  const row = rows[0]
+  if (!row || !row.is_active) return null
+  return { id: row.id, role: row.role as UserRole }
+}
+
+/**
  * Updates last_login to current UTC datetime for the given user id.
  */
 export function updateLastLogin(userId: number): void {

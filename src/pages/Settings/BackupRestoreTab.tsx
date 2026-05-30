@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, Button, Table, Switch, Select, Input, Modal, notification } from 'antd'
 import { CloudUploadOutlined, FolderOpenOutlined, RollbackOutlined, ExperimentOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import { useAuthStore } from '@/store/authStore'
 
 interface BackupLogRow {
   id: number
@@ -27,6 +28,7 @@ function formatBytes(n: number | null): string {
 }
 
 export function BackupRestoreTab(): React.ReactElement {
+  const { currentUser } = useAuthStore()
   const [creating, setCreating] = useState(false)
   const [restoring, setRestoring] = useState(false)
   const [seeding, setSeeding] = useState(false)
@@ -67,8 +69,23 @@ export function BackupRestoreTab(): React.ReactElement {
   const handleCreateBackup = (): void => {
     setCreating(true)
     setLastBackupResult(null)
-    window.api
-      .invoke<{ success: boolean; filePath?: string; fileSize?: number; error?: string }>('backup:create')
+    const uid = currentUser?.id
+    const backupPromise =
+      uid != null
+        ? window.api
+            .invoke<{ ok: boolean }>('auth:syncSession', { userId: uid })
+            .then((sync) => {
+              if (sync && !sync.ok) {
+                throw new Error('Session could not be restored. Please sign out and sign in again.')
+              }
+              return window.api.invoke<{ success: boolean; filePath?: string; fileSize?: number; error?: string }>(
+                'backup:create',
+                { userId: uid }
+              )
+            })
+        : window.api.invoke<{ success: boolean; filePath?: string; fileSize?: number; error?: string }>('backup:create')
+
+    backupPromise
       .then((res) => {
         if (res?.success && res.filePath != null) {
           setLastBackupResult({ filePath: res.filePath, fileSize: res.fileSize ?? 0 })
@@ -81,7 +98,11 @@ export function BackupRestoreTab(): React.ReactElement {
           notification.error({ message: res?.error ?? 'Backup failed' })
         }
       })
-      .catch(() => notification.error({ message: 'Backup failed' }))
+      .catch((err) =>
+        notification.error({
+          message: err instanceof Error ? err.message : 'Backup failed'
+        })
+      )
       .finally(() => setCreating(false))
   }
 

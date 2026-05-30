@@ -15,7 +15,7 @@ interface AppGuardProps {
 export function AppGuard({ children }: AppGuardProps): React.ReactElement {
   const [checking, setChecking] = useState(true)
   const [isFirstRun, setIsFirstRun] = useState(false)
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, currentUser, logout } = useAuthStore()
 
   useEffect(() => {
     let cancelled = false
@@ -34,6 +34,18 @@ export function AppGuard({ children }: AppGuardProps): React.ReactElement {
       cancelled = true
     }
   }, [])
+
+  // Persisted login restores the UI, but Electron main only had a session after auth:login.
+  // Sync so backup, user management, etc. work without forcing a re-login every launch.
+  useEffect(() => {
+    if (checking || isFirstRun || !isAuthenticated || currentUser?.id == null) return
+    window.api
+      .invoke<{ ok: boolean }>('auth:syncSession', { userId: currentUser.id })
+      .then((res) => {
+        if (res && !res.ok) logout()
+      })
+      .catch(() => {})
+  }, [checking, isFirstRun, isAuthenticated, currentUser?.id, logout])
 
   if (checking) {
     return (

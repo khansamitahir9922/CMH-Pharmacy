@@ -6,6 +6,7 @@ import {
   createUser,
   updateUser,
   resetPassword,
+  deleteUser,
   countActiveAdmins,
   type UserListRow
 } from '../../src/db/queries/users'

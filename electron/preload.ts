@@ -5,6 +5,7 @@ const ALLOWED_CHANNELS = new Set([
   'auth:checkFirstRun',
   'auth:setup',
   'auth:login',
+  'auth:syncSession',
   'auth:logout',
   'audit:getLogs',
   'audit:logReportView',
